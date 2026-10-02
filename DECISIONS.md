@@ -49,7 +49,7 @@ and this log disagree, this log is authoritative.
 | DR-021 | Stage 1 security hardening: one migration, a read-only catalog test, a local behavior test | Accepted | In the repository, pushed (`e74aaaf`, test strengthened in `8a1ad9d`) and verified locally on Postgres 17; **not applied to live**. It deploys through the connector (DR-024) |
 | DR-022 | Retire release gate R-8 (the Auth settings check); no Auth is an explicit tradeoff | Accepted | In force: documentation only; enforced by catalog checks 13 and 15 |
 | DR-023 | SEC-007 at the Stage 1 release: no default-privilege change; every new function is revoked explicitly | Accepted | Stage 1 part verified locally (no function exposed through the default); the Stage 2 obligation is recorded |
-| DR-024 | The Supabase connector is the single authoritative production migration path | Accepted | Designated. No migration applied under it yet; Stage 1 is the first, and release gate R-2 is pending |
+| DR-024 | The Supabase connector is the single authoritative production migration path | Accepted; amended by A1 (14:55) | Designated. No migration applied under it yet: the first Stage 1 attempt timed out without effect (EVAL-062). Amendment A1 sets the conditions for the next attempt; R-2 is pending |
 
 ---
 
@@ -836,3 +836,22 @@ restores the whole seed. **The project owner approved D1 to D7 on 2026-10-02** (
   - EVAL-060: the deployment-path audit: the owner's confirmation, the 09:18 instruction's wording, the connector's contract, and the CLI and CI state.
   - EVAL-022 and EVAL-059: production migration history and byte parity.
   - DR-009 and the repository history (`03a4666`, `9c65e6c`, `ddadd36`).
+- **Amendment A1 (2026-10-02, 14:55): a temporary confirmation setting for the Stage 1 deployment window.** Added after the first attempt; the decision above is unchanged.
+  - **What happened:** the first Stage 1 deployment attempt made one `apply_migration` call at 14:48:23. It timed out at 14:49:27 and applied nothing (EVAL-062).
+    - The Supabase connector asks for confirmation before running SQL it detects as destructive, and the migration contains `drop policy`.
+    - This cloud client didn't show that confirmation to the owner. The call waited until the session's MCP tool timeout of 60 seconds (`MCP_TOOL_TIMEOUT=60000`, EVAL-063).
+    - The tool never reported that it was waiting for confirmation, so this cause is an inference. It's consistent with EVAL-006 and EVAL-062.
+  - **The mechanism doesn't change.** The Supabase connector remains the single production migration path. This amendment changes no database object, migration, test or project file.
+  - **The accommodation:** for the controlled Stage 1 deployment window only, the owner sets the Supabase connection's `skip_elicitations=apply_migration` option.
+    - It's set on the connection, outside the repository, so that `apply_migration` runs without the confirmation form this client can't display.
+    - It applies to the `apply_migration` tool only. It doesn't cover `execute_sql` or any other tool.
+  - **Authorization:**
+    - The setting authorizes nothing by itself, and it doesn't authorize any other migration or production change.
+    - The owner's explicit authorization for the Stage 1 production deployment is the authorization for that single migration operation. It stands in for the confirmation form.
+  - **Removal:** the owner removes the setting after the deployment attempt, whether it succeeds or fails.
+  - **The hard-stop rules still apply in full:**
+    - exactly one `apply_migration` call, with no retry;
+    - no `migration repair` and no manual history changes;
+    - independent read-only verification afterwards.
+  - **On failure:** if the attempt fails or behaves unexpectedly, the deployment stops, the setting is removed, and nothing is retried in that run.
+  - **Scope:** this is a temporary operational accommodation for the current client environment. It isn't a change to the project's database architecture or to DR-024's procedure. Any future migration that triggers the same confirmation needs its own explicit authorization under this rule, or a client that shows the form.

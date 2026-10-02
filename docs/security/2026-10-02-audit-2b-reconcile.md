@@ -761,3 +761,7 @@ It's a separate, authorized run; nothing in this section performs it.
 8. Mark R-2, R-3 and R-6 with that evidence, then make one closeout commit and push.
 
 If any check fails, stop and reconcile. Don't retry blindly, repair the history, or apply a compensating migration without analysis.
+
+**Update (14:55, EVAL-062, EVAL-063):**
+- The first deployment attempt under this plan timed out at step 3 and applied nothing. The cause: the connector held the `drop policy` statement for a confirmation that this cloud client doesn't display.
+- DR-024 amendment A1 governs the next attempt. The owner sets `skip_elicitations=apply_migration` on the Supabase connection for that window only, and removes it afterwards. The steps and hard-stop rules above are unchanged.

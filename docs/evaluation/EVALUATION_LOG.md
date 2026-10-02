@@ -98,6 +98,8 @@ migrations (`supabase/tests/local_roles.sql` first, for the `anon` and `authenti
 | EVAL-059 | 13:38 | Deployment preflight: live read-only re-check; connector capability | live read-only, docs | Unchanged: 3 migrations, catalog 13 of 17, fingerprint = EVAL-023. `apply_migration` takes no version; nothing deployed | Catalog and fingerprint parts reproducible from repo |
 | EVAL-060 | 13:58 | Deployment-path audit; correction of the GitHub-link reading | static, live read-only, docs | No GitHub integration ever connected (owner-verified); the connector is the only mechanism; led to DR-024 | Recorded only |
 | EVAL-061 | 14:23 | DR-024 commit: fresh replay, tests, hygiene, Markdown and secret checks | local, build, static | 17/17, 24/24, 12/12, 6/6; 11/11; checks clean | Tests and replay reproducible from repo; scans recorded only |
+| EVAL-062 | 14:37 | First Stage 1 deployment attempt: gates, preflight, one `apply_migration` call | local, build, static, live read-only, live write attempt | All gates green; the apply timed out at 60 s; nothing applied (hard stop) | Gates reproducible from repo; the attempt recorded only |
+| EVAL-063 | 14:53 | Connector confirmation diagnostic | static, docs, live read-only | No confirmation shown in this client; 60 s tool timeout; `skip_elicitations` lives on the connection, unreadable here | Recorded only |
 
 ---
 
@@ -1224,6 +1226,61 @@ Starting commit: `548701bd5993eb3efc9a90a92498c62cede2e78e`, clean, in sync with
   - **Pattern scan of tracked files:** no project reference, `*.supabase.co` host, Supabase key format, JWT, connection string, private key, service-role reference or model identifier, and no Supabase CLI artifact.
   - **Untracked or generated files:** none, apart from the ignored `dist/` and `node_modules/`.
 - **Reproducibility:** the replay, tests, typecheck and build are reproducible from repo; the scans are recorded only.
+
+## First Stage 1 deployment attempt and connector diagnostic (2026-10-02, 14:37 to 14:55)
+
+Starting commit: `36718bbaa4b31febe888eb68558ba848803dd612`, clean, in sync. **No production change resulted.**
+
+### EVAL-062: First Stage 1 deployment attempt
+- **Date:** 14:37 to 14:50.
+- **Target:** local, build, static, live read-only, and one live write attempt.
+- **Run and result:**
+  - **Repository checkpoint:** HEAD `36718bb`, clean, in sync; `main` at `0e737dc`.
+    - The Stage 1 file is 2205 bytes, md5 `f66a638dfb93554ad4f1a2bac0826304`, sha256 `a6efa904...`, unchanged since `e74aaaf`.
+    - All four migration files end in one LF.
+  - **Supabase guidance:**
+    - The changelog couldn't be read: the session's network policy blocks `supabase.com`.
+    - The docs, read through the connector, show the same migration endpoints as before.
+    - `apply_migration` still takes only `project_id`, `name` and `query`.
+  - **Local replay** (fresh Postgres 17.10): catalog 17 of 17; behavior 24 of 24 (41 of 41 rejected); fingerprint 12 of 12 equal to EVAL-045; integrity 6 of 6.
+  - **App and static checks:**
+    - Unit tests 11 of 11; typecheck exit 0; build `built in 623ms`.
+    - Hygiene and Markdown checks clean.
+    - detect-secrets reported 8 findings over the tracked files, all known false positives: 7 documented hashes and 1 synthetic reject URL. The pattern scan found 0.
+  - **Production preflight (read-only, 14:39 to 14:41):**
+    - `ACTIVE_HEALTHY`, Postgres `17.11.0.002`, free plan, no branches, exactly 3 migrations.
+    - Catalog 13 of 17, failing checks 3, 9, 14 and 15. Fingerprint equal to EVAL-023.
+    - ACLs, policies, grants, seed counts, IDs and sequences at the baseline; advisors only 0028 and 0029; no unexpected log activity.
+  - **Byte-identity checks through the connector:**
+    - A read-only `select md5(...)` of the full migration text, sent at 14:41:29, timed out at 14:42:33. The text contains `drop policy`, so this is the same pattern as EVAL-006.
+    - The same check on the only backslash-bearing line, with no destructive keyword, returned at once with md5 `dc5ba0821dede4d9179b96ae5d1c3ea1`. That equals the local file.
+  - **The apply:**
+    - The owner confirmed they were ready to approve the confirmation.
+    - `list_migrations` at 14:48:13 still showed 3 versions.
+    - One `apply_migration` call (`name` `stage1_security_hardening`, the file's exact bytes) was sent at 14:48:23. It **timed out at 14:49:27**.
+    - The owner saw no confirmation form. The call wasn't retried.
+  - **Read-back (14:49 to 14:50):**
+    - Still 3 migrations; `"Public append"` present; no `evidence_source_https`.
+    - Function ACLs, evidence INSERT grants and the table default ACL unchanged; no active query on `evidence`.
+    - The logs show only management-API health checks. **Nothing was applied, in whole or in part.**
+- **Reproducibility:** the gates are reproducible from repo; the attempt is recorded only.
+
+### EVAL-063: Connector confirmation diagnostic
+- **Date:** 14:53:26 to 14:53:47.
+- **Target:** static, docs, and live read-only.
+- **Result:**
+  - **Documentation:** the Supabase troubleshooting guide "SQL confirmations do not appear in your MCP client" says the server can ask for confirmation before running detected destructive SQL through `execute_sql` or `apply_migration`. The dialog needs the client to support form elicitations.
+    - `skip_elicitations`, set on the MCP server URL, lists tools that run without the form.
+    - Permissions and read-only restrictions still apply.
+  - **This environment:**
+    - The Supabase connector isn't configured in the container (no MCP entry in `~/.claude.json`, and no `.mcp.json` or settings file); it's attached through the owner's Claude account.
+    - The current `skip_elicitations` value can't be read from here.
+    - `MCP_TOOL_TIMEOUT=60000` matches the 60-second timeouts.
+    - The owner saw no confirmation form in this cloud client.
+  - **Production:** `list_migrations` at 14:53 still showed exactly 3 versions.
+  - **Inference:** this client doesn't surface the connector's confirmation form, so a held call waits until the tool timeout. The tool never reported the hold itself.
+- **Consequence:** DR-024 amendment A1.
+- **Reproducibility:** recorded only.
 
 ## Not run (don't claim these)
 
