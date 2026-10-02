@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { focusRing } from '../components/AppShell';
 import { fetchLaunchRows, formatTargetDate, type LaunchRow } from '../lib/launches';
@@ -30,49 +30,51 @@ export function LaunchesPage() {
     };
   }, []);
 
+  const rows = state.status === 'success' ? state.rows : [];
+  const notReady = rows.filter((row) => row.readiness.status === 'Not ready').length;
+
   return (
     <>
-      <h1 className="text-xl font-semibold tracking-tight">Launches</h1>
-      <p className="mt-1 max-w-prose text-sm text-zinc-600 dark:text-zinc-400">
-        Readiness is computed from each launch's gates. A launch is Ready only when every required gate is Passed or
-        Waived.
-      </p>
-      <div className="mt-6">
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="text-[15px] font-semibold tracking-tight">Launches</h1>
+        {rows.length > 0 &&
+          (notReady > 0 ? (
+            <StatusChip tone="danger">{notReady} not ready</StatusChip>
+          ) : (
+            <StatusChip tone="success">All ready</StatusChip>
+          ))}
+      </div>
+      <div className="mt-4">
         {state.status === 'loading' && (
-          <p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">
+          <p role="status" className="rounded-md border border-line bg-card px-3 py-6 text-center text-muted">
             Loading launches…
           </p>
         )}
         {state.status === 'error' && (
-          <div
-            role="alert"
-            className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-100"
-          >
+          <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-100">
             <p className="font-medium">Could not load launches.</p>
             <p className="mt-1 break-words">{state.message}</p>
           </div>
         )}
-        {state.status === 'success' && state.rows.length === 0 && (
-          <p className="rounded-md border border-zinc-200 px-3 py-6 text-center text-sm text-zinc-600 dark:border-zinc-800 dark:text-zinc-400">
-            No launches yet.
-          </p>
+        {state.status === 'success' && rows.length === 0 && (
+          <p className="rounded-md border border-line bg-card px-3 py-6 text-center text-muted">No launches yet.</p>
         )}
-        {state.status === 'success' && state.rows.length > 0 && <LaunchesTable rows={state.rows} />}
+        {rows.length > 0 && <LaunchesTable rows={rows} />}
       </div>
     </>
   );
 }
 
 const th = 'px-3 py-2 font-medium whitespace-nowrap';
-const td = 'px-3 py-3 whitespace-nowrap';
+const td = 'px-3 py-2.5 whitespace-nowrap';
 
 function LaunchesTable({ rows }: { rows: LaunchRow[] }) {
   return (
     // The table scrolls inside this container on narrow screens; the page never does.
-    <div className="overflow-x-auto rounded-md border border-zinc-200 dark:border-zinc-800">
-      <table className="w-full text-left text-sm">
+    <div className="overflow-x-auto rounded-md border border-line bg-card">
+      <table className="w-full text-left">
         <caption className="sr-only">Launches with readiness computed from their gates</caption>
-        <thead className="border-b border-zinc-200 bg-zinc-50 text-xs text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
+        <thead className="border-b border-line text-muted">
           <tr>
             <th scope="col" className={th}>Launch</th>
             <th scope="col" className={th}>Owner</th>
@@ -83,28 +85,26 @@ function LaunchesTable({ rows }: { rows: LaunchRow[] }) {
             <th scope="col" className={th}>Status</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
+        <tbody className="divide-y divide-line">
           {rows.map((row) => (
             <tr key={row.id}>
               <th scope="row" className={`${td} font-medium`}>
                 <Link
                   to={`/launches/${row.id}`}
-                  className={`rounded-sm text-zinc-900 underline-offset-4 hover:underline dark:text-zinc-100 ${focusRing}`}
+                  className={`rounded-sm text-accent underline-offset-2 hover:underline ${focusRing}`}
                 >
                   {row.name}
                 </Link>
               </th>
               <td className={td}>{row.owner}</td>
-              <td className={`${td} ${row.targetDate === null ? 'text-zinc-500 dark:text-zinc-400' : ''}`}>
-                {formatTargetDate(row.targetDate)}
-              </td>
+              <td className={`${td} ${row.targetDate === null ? 'text-muted' : ''}`}>{formatTargetDate(row.targetDate)}</td>
               <td className={td}>
                 {row.currentStage ? `${row.currentStage.stage} · ${row.currentStage.status}` : 'All stages completed'}
               </td>
-              <td className={`${td} tabular-nums`}>{row.readiness.label}</td>
-              <td className={`${td} text-right tabular-nums`}>{row.readiness.blocking.length}</td>
+              <td className={td}>{row.readiness.label}</td>
+              <td className={`${td} text-right`}>{row.readiness.blocking.length}</td>
               <td className={td}>
-                <StatusBadge status={row.readiness.status} />
+                <StatusChip tone={row.readiness.status === 'Ready' ? 'success' : 'danger'}>{row.readiness.status}</StatusChip>
               </td>
             </tr>
           ))}
@@ -114,10 +114,15 @@ function LaunchesTable({ rows }: { rows: LaunchRow[] }) {
   );
 }
 
-function StatusBadge({ status }: { status: 'Ready' | 'Not ready' }) {
+// Status colors only: emerald for Ready, red for Not ready.
+function StatusChip({ tone, children }: { tone: 'success' | 'danger'; children: ReactNode }) {
   const color =
-    status === 'Ready'
-      ? 'bg-emerald-50 text-emerald-800 ring-emerald-600/30 dark:bg-emerald-950 dark:text-emerald-300 dark:ring-emerald-400/30'
-      : 'bg-red-50 text-red-800 ring-red-600/30 dark:bg-red-950 dark:text-red-300 dark:ring-red-400/30';
-  return <span className={`inline-flex rounded-md px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${color}`}>{status}</span>;
+    tone === 'success'
+      ? 'bg-emerald-50 text-emerald-800 ring-emerald-700/25 dark:bg-emerald-950 dark:text-emerald-300 dark:ring-emerald-400/25'
+      : 'bg-red-50 text-red-800 ring-red-700/25 dark:bg-red-950 dark:text-red-300 dark:ring-red-400/25';
+  return (
+    <span className={`inline-flex rounded-md px-1.5 py-px font-medium ring-1 ring-inset motion-safe:animate-fade-in ${color}`}>
+      {children}
+    </span>
+  );
 }

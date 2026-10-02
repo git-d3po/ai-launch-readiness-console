@@ -1,9 +1,52 @@
 @import "tailwindcss";
 
-/* Zinc neutrals; semantic colors only: blue info, emerald success, amber warning, red danger.
-   Dark mode follows the system preference (Tailwind's default dark variant). */
+/* Visual system.
+   Surfaces are warm stone. One muted blue accent marks the current nav item, links,
+   and the focus ring, and nothing else. Emerald, amber, and red are status colors only. */
+:root {
+  --page: var(--color-stone-100);
+  --card: var(--color-stone-50);
+  --fg: var(--color-stone-900);
+  --muted: var(--color-stone-600);
+  --line: var(--color-stone-200);
+  --accent: oklch(0.47 0.09 255);
+  --accent-subtle: oklch(0.93 0.025 255);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --page: var(--color-stone-950);
+    --card: var(--color-stone-900);
+    --fg: var(--color-stone-100);
+    --muted: var(--color-stone-400);
+    --line: var(--color-stone-800);
+    --accent: oklch(0.76 0.08 250);
+    --accent-subtle: oklch(0.31 0.04 255);
+  }
+}
+
+@theme inline {
+  --color-page: var(--page);
+  --color-card: var(--card);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-subtle: var(--accent-subtle);
+}
+
+/* The only motion: a short fade when a status badge appears. */
+@theme {
+  --animate-fade-in: fade-in 150ms ease-out;
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+}
+
 @layer base {
   body {
-    @apply bg-white text-zinc-900 antialiased dark:bg-zinc-950 dark:text-zinc-100;
+    @apply bg-page text-[13px] text-fg tabular-nums antialiased;
   }
 }
