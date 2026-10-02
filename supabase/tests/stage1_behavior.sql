@@ -12,6 +12,10 @@
 -- (insufficient_privilege), so a missing table or a broken query can't pass
 -- as a permission check. A rejected source passes only when the
 -- evidence_source_https constraint is the one that rejected it.
+--
+-- The file is ASCII-only on purpose: every control, invisible or non-ASCII
+-- character in a test value is written as an E'' escape, never as a raw
+-- character, so no bidirectional or invisible text hides in the source.
 
 \set ON_ERROR_STOP on
 
@@ -257,11 +261,19 @@ insert into source_cases values
   ('reject', 'double quote', 'https://example.com/"onmouseover'),
   ('reject', 'malformed percent escape', 'https://example.com/%zz'),
   ('reject', 'C1 control (NEL)', E'https://example.com/\u0085x'),
-  ('reject', 'no-break space', E'https://example.com/ x'),
-  ('reject', 'zero-width space', E'https://example.com/​x'),
-  ('reject', 'right-to-left override', E'https://example.com/‮gnp.exe'),
-  ('reject', 'left-to-right isolate', E'https://example.com/⁦x'),
-  ('reject', 'raw non-ASCII letter (must be percent-encoded)', E'https://example.com/bücher');
+  ('reject', 'no-break space', E'https://example.com/\u00A0x'),
+  ('reject', 'zero-width space', E'https://example.com/\u200Bx'),
+  ('reject', 'right-to-left override', E'https://example.com/\u202Egnp.exe'),
+  ('reject', 'left-to-right isolate', E'https://example.com/\u2066x'),
+  ('reject', 'trailing LF after a valid URL', E'https://example.com/\n'),
+  ('reject', 'trailing CR after a valid URL', E'https://example.com/\r'),
+  ('reject', 'trailing CRLF after a valid URL', E'https://example.com/\r\n'),
+  ('reject', 'LF right after the host', E'https://example.com\n'),
+  ('reject', 'leading LF', E'\nhttps://example.com'),
+  ('reject', 'tab inside the scheme separator', E'https:\t//example.com'),
+  ('reject', 'full-width scheme letters', E'\uFF48\uFF54\uFF54\uFF50\uFF53://example.com'),
+  ('reject', 'Cyrillic lookalike letter in the host', E'https://ex\u0430mple.com'),
+  ('reject', 'raw non-ASCII letter (must be percent-encoded)', E'https://example.com/b\u00FCcher');
 
 insert into behavior_results
 select 22, 'Every https source in the accept table is accepted',

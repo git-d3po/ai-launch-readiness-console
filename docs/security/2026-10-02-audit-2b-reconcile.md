@@ -356,7 +356,7 @@ alter default privileges for role postgres in schema public revoke all on tables
 - **Sandbox links:** `launches.source_launch_id` (null means canonical) and `gates.source_gate_id`.
 - **Integrity:** `unique (id, launch_id)` on gates, plus composite foreign keys so a risk or decision can only reference a gate in its own launch (Audit 1 M4).
 - **Text checks:**
-  - Single-line titles reject `[\x01-\x1F\x7F-\x9F‪-‮⁦-⁩]`.
+  - Single-line titles reject `[\x01-\x1F\x7F-\x9F\u202A-\u202E\u2066-\u2069]`.
   - Multi-line fields also allow tab, LF and CR.
 - **Cooldown state:** a private `sandbox_state` table (RLS enabled, no grants) holding `last_reset_at`.
 
