@@ -28,6 +28,19 @@ reusable, so it lives with the other database tests as
 [`supabase/tests/fingerprint.sql`](../../../../supabase/tests/fingerprint.sql). Only a documentation
 header was added to it. Its query is byte-identical to the scratch version.
 
+## Related committed tests (added with Stage 1)
+
+None of the preserved scripts above was turned into a test. They stay byte-identical here as evidence.
+
+Stage 1 committed two tests that cover ground earlier covered only by ad hoc commands. Those commands were never preserved as files:
+
+| Committed test | Replaces the ad hoc checks recorded in |
+|---|---|
+| [`supabase/tests/security_catalog.sql`](../../../../supabase/tests/security_catalog.sql) (read-only) | EVAL-016 (grants, policies, functions), EVAL-025 (default privileges) |
+| [`supabase/tests/stage1_behavior.sql`](../../../../supabase/tests/stage1_behavior.sql) (local only) | EVAL-017 P6 and EVAL-029 (denied paths), EVAL-030 (URL rule table), EVAL-031 (default-privilege probe) |
+
+The Stage 1 HTTP check (EVAL-046) reused this directory's approach: a local PostgREST 14.18 with a signing secret generated at run time. It used no script from here, and its commands weren't preserved.
+
 ## Why these can't run as they are
 
 - **Playwright location.** They load Playwright from a machine-specific global install

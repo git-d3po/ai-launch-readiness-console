@@ -31,20 +31,22 @@ and this log disagree, this log is authoritative.
 | DR-003 | The current rollout stage is derived, not stored | Accepted | Implemented (`03a4666`) |
 | DR-004 | Build in this repository against our own Supabase project, not through Lovable | Accepted | Implemented (all code commits) |
 | DR-005 | Supabase project configuration | Accepted | In place since project creation |
-| DR-006 | No authentication in Phase 1; `anon` and `authenticated` have identical privileges | Accepted | Implemented (`03a4666`) |
+| DR-006 | No authentication in Phase 1; `anon` and `authenticated` have identical privileges | Accepted (extended by DR-020) | Implemented (`03a4666`) |
 | DR-007 | The seeded launch has 16 gates, not 17 | Accepted | Implemented (`03a4666`, brief corrected in `9c65e6c`) |
 | DR-008 | Waiver text is copied onto the decision row | Accepted | Implemented (`9c65e6c`) |
 | DR-009 | Migration files carry the versions Supabase recorded | Accepted | Implemented (`9c65e6c`) |
 | DR-010 | Revoke EXECUTE on `rls_auto_enable` from PUBLIC, `anon` and `authenticated` | Accepted | Implemented (`ddadd36`) |
 | DR-011 | The publishable key comes from environment configuration; the live key was never fetched | Accepted | Implemented (`e8e71ef`) |
 | DR-012 | One accent color; emerald, amber and red reserved for status | Accepted | Implemented (`1572708`) |
-| DR-013 | Trust model C: read-only canonical launch plus a disposable shared sandbox (Phase 2B D1) | Accepted | **Not yet implemented** |
-| DR-014 | Reset applies only to the sandbox, with a 5-minute cooldown (D2) | Accepted | **Not yet implemented** |
+| DR-013 | Trust model C: read-only canonical launch plus a disposable shared sandbox (Phase 2B D1) | Accepted | Stage 1 part in the repository and verified locally, **not applied to live**; Stage 2 not built |
+| DR-014 | Reset applies only to the sandbox, with a 5-minute cooldown (D2) | Accepted | Stage 1 part in the repository and verified locally, **not applied to live**; Stage 2 not built |
 | DR-015 | All five evidence types in the sandbox, always marked as visitor evidence (D3) | Accepted | **Not yet implemented** |
 | DR-016 | The database sets visitor identity and evidence dates (D4) | Accepted | **Not yet implemented** |
-| DR-017 | Evidence URLs are https only; visitor URLs are never clickable (D5) | Accepted | **Not yet implemented** |
-| DR-018 | Sandbox limits: 10 visitor evidence and 20 visitor decisions per gate, 5-minute cooldown (D6) | Accepted | **Not yet implemented** |
-| DR-019 | One authoritative migration deployment path (D7) | Accepted | **Not yet implemented** |
+| DR-017 | Evidence URLs are https only; visitor URLs are never clickable (D5) | Accepted | Database rule in the repository and verified locally, **not applied to live**; rendering rule is Stage 2 |
+| DR-018 | Sandbox limits: 10 visitor evidence and 20 visitor decisions per gate, 5-minute cooldown (D6) | Accepted | **Not yet implemented** (Stage 2); Stage 1's zero public-write bound is in the repository, not applied to live |
+| DR-019 | One authoritative migration deployment path (D7) | Accepted | **Not yet implemented**; blocks production deployment (release gate R-9) |
+| DR-020 | No Supabase Auth at this stage; `authenticated` stays aligned with `anon` | Accepted | In force (nothing to build) |
+| DR-021 | Stage 1 security hardening: one migration, a read-only catalog test, a local behavior test | Accepted | In the repository and verified locally on Postgres 17; **not applied to live** |
 
 ---
 
@@ -187,7 +189,7 @@ and this log disagree, this log is authoritative.
 ## DR-006: No authentication in Phase 1; `anon` and `authenticated` have identical privileges
 
 - **Date:** Phase 1 scope in the brief (authentication out of scope). Implemented in `03a4666` (09:14).
-- **Status:** Accepted
+- **Status:** Accepted. Extended beyond Phase 1 by DR-020, which keeps Auth out of the project at this stage.
 - **Context:** there's no sign-in, but Supabase serves two API roles.
 - **Options considered:** grant to `anon` only; give `authenticated` more; keep them identical.
 - **Decision:**
@@ -351,22 +353,22 @@ contradicts two requirements in the brief: public editing of the launch, and a p
 restores the whole seed. **The project owner approved D1 to D7 on 2026-10-02** (instruction received at
 11:10). They're recorded below as accepted.
 
-**None of them is implemented yet:**
-- When live was last read (10:58), it still had the Phase 1 public write surface. Nothing has been applied to it since by these sessions.
-- No remediation migration exists in this repository.
-- No sandbox, provenance column, sandbox function, cap or cooldown exists.
+**Implementation status (updated after Stage 1, 2026-10-02 at about 12:05):**
+- **Stage 1** (DR-021) is in the repository and verified locally on Postgres 17: migration `20261002115318_stage1_security_hardening`, plus the catalog and behavior tests.
+- **Stage 1 is not applied to the live project.** The single deploy path couldn't be established, because the GitHub integration's deploy setting is unverified (DR-019, R-9). Live was read again at 12:00. It still has the Phase 1 public write surface, and the new catalog test fails there on exactly the four checks the migration fixes (EVAL-048).
+- **Stage 2:** no sandbox, provenance column, sandbox function, cap or cooldown exists.
 
 **Implementation order** (details in [the reconciliation record](docs/security/2026-10-02-audit-2b-reconcile.md#9-remediation-sequence)):
-- **Stage 1, security hardening (next):** the read-only catalog test, then migrations M-1 (no public writes), M-2 (https check) and M-3 (default privileges), then verification.
+- **Stage 1, security hardening:** the read-only catalog test, then migrations M-1 (no public writes), M-2 (https check) and M-3 (default privileges), then verification. Done in the repository and locally; the production deployment is pending R-9.
 - **Stage 2, the sandbox (later, at the start of the gate-sheet phase):** M-4 to M-6 and application items A3 to A9.
 
 ## DR-013: Trust model C: a read-only canonical launch plus a disposable shared sandbox (D1)
 
 - **Date:** specified at 10:58 (Phase 2B report, baseline `cb27437`); approved on 2026-10-02.
 - **Status:** Accepted
-- **Implementation status:** **Not yet implemented.**
-  - **Stage 1** (migration M-1) makes the canonical launch read-only to the public.
-  - **Stage 2** (M-4 to M-6, A3 to A9) adds the sandbox.
+- **Implementation status:**
+  - **Stage 1** (migration M-1) makes the canonical launch read-only to the public. It's in the repository and verified locally on Postgres 17 (DR-021), but **not applied to live**.
+  - **Stage 2** (M-4 to M-6, A3 to A9) adds the sandbox. Not built.
 - **Context:**
   - Any anonymous caller can make the canonical launch read Ready and plant impersonated approvers (SEC-001).
   - The public write paths exist because the brief asked for public editing, but **no shipped UI uses them**. The client makes no write calls, and Reset is disabled.
@@ -404,9 +406,9 @@ restores the whole seed. **The project owner approved D1 to D7 on 2026-10-02** (
 
 - **Date:** specified at 10:58; approved on 2026-10-02.
 - **Status:** Accepted
-- **Implementation status:** **Not yet implemented.**
-  - **Stage 1** (M-1) revokes `anon` and `authenticated` EXECUTE on `reset_demo_data()`.
-  - **Stage 2** (M-4 to M-6, A7) adds `sandbox_reset()`.
+- **Implementation status:**
+  - **Stage 1** (M-1) revokes `anon` and `authenticated` EXECUTE on `reset_demo_data()`. It's in the repository and verified locally (DR-021), but **not applied to live**.
+  - **Stage 2** (M-4 to M-6, A7) adds `sandbox_reset()`. Not built.
 - **Context:** `reset_demo_data()` truncates all six tables and re-seeds them, and any anonymous caller can run it (SEC-002).
 - **Options considered:**
   - **Remove it from the public API:** chosen for the canonical reseed.
@@ -480,9 +482,9 @@ restores the whole seed. **The project owner approved D1 to D7 on 2026-10-02** (
 
 - **Date:** specified at 10:58; approved on 2026-10-02.
 - **Status:** Accepted
-- **Implementation status:** **Not yet implemented.**
-  - **Stage 1:** M-2 adds the CHECK constraint.
-  - **Stage 2:** A6 sets the rendering rule.
+- **Implementation status:**
+  - **Stage 1:** M-2 adds the CHECK constraint. It's in the repository and verified locally (DR-021), but **not applied to live**. The implemented pattern refines the Phase 2B text so that it doesn't depend on the collation provider (DR-021).
+  - **Stage 2:** A6 sets the rendering rule. Not built. No UI renders `source` today.
 - **Context:** `evidence.source` accepts `javascript:` and other schemes. Nothing renders it today, but the gate sheet will (SEC-005).
 - **Options considered:**
   - a UI-only check
@@ -505,7 +507,7 @@ restores the whole seed. **The project owner approved D1 to D7 on 2026-10-02** (
 
 - **Date:** specified at 10:58; approved on 2026-10-02.
 - **Status:** Accepted
-- **Implementation status:** **Not yet implemented** (Stage 2: M-6). Stage 1 sets the public write bound to zero.
+- **Implementation status:** **Not yet implemented** (Stage 2: M-6). Stage 1 sets the public write bound to zero; that part is in the repository and verified locally (DR-021), but not applied to live.
 - **Context:** public writes are unbounded today. The free plan turns read-only above 500 MB of database size (SEC-003).
 - **Options considered:**
   - **Per-gate caps inside the sandbox functions:** chosen.
@@ -541,6 +543,13 @@ restores the whole seed. **The project owner approved D1 to D7 on 2026-10-02** (
   - All migrations so far were applied through the Supabase connector.
   - The owner reported linking GitHub to the Supabase project. Its deploy settings haven't been verified.
   - Which mechanism becomes the single path is still to be confirmed.
+  - **Update (Stage 1, about 12:05):**
+    - The current Supabase documentation says the GitHub integration's "Deploy to production" option applies new migrations when changes reach the production branch. It works on every plan and doesn't need branching (EVAL-037).
+    - The project has no Supabase branches. That doesn't show whether the option is on, and the setting is only visible in the dashboard.
+    - The single path therefore couldn't be established, so the Stage 1 migration was **not** applied to production.
+    - **To unblock, the owner reads Project Settings > Integrations > GitHub** (deploy to production on or off, production branch, working directory) and picks one path:
+      - **The connector or CLI,** with "Deploy to production" turned off. A file applied through the connector is renamed to its recorded version (DR-009).
+      - **The GitHub integration,** in which case nothing is applied through the connector.
 - **Context:** two mechanisms can apply migrations to the same project: the connector or CLI, and the GitHub integration. Competing paths cause double application and drift (finding N4).
 - **Options considered:** the connector or CLI as the single path; the GitHub integration as the single path; both (rejected).
 - **Decision:**
@@ -551,3 +560,98 @@ restores the whole seed. **The project owner approved D1 to D7 on 2026-10-02** (
 - **Assumptions:** none.
 - **Consequences:** catalog test C-11 (migration parity) belongs to whichever path is chosen.
 - **Evidence:** EVAL-022: the current state is byte-identical.
+
+## DR-020: No Supabase Auth at this stage; `authenticated` stays aligned with `anon`
+
+- **Date:** decided by the project owner on 2026-10-02, at the start of Stage 1.
+- **Status:** Accepted. Extends DR-006 beyond Phase 1.
+- **Implementation status:** in force. There's nothing to build. This decision removes work rather than adding it.
+- **Context:**
+  - The project is a portfolio and demo system for recruiter, hiring-manager and technical review, not a customer-facing SaaS product.
+  - Its canonical data is synthetic and author-curated.
+  - The Phase 2B record (§7) listed what Auth would and wouldn't solve, and found that neither Stage 1 nor the Stage 2 sandbox needs it.
+- **Options considered:**
+  1. Add Supabase Auth now: anonymous sign-ins, per-visitor sandboxes, `auth.uid()` policies.
+  2. Keep the public experience deliberately constrained and unauthenticated: a read-only canonical launch now, and later a shared sandbox reachable only through allowlisted database functions.
+- **Decision:** option 2. **This project doesn't add:**
+  - login, signup or anonymous sign-in
+  - sessions, auth cookies or auth middleware
+  - user profiles or ownership columns
+  - policies that depend on `auth.uid()`
+  - any Auth UI
+
+  `authenticated` remains a PostgreSQL role whose privileges are kept identical to `anon`'s (invariant I6, catalog check 13).
+- **Rationale:**
+  - Authentication isn't what establishes this project's trust boundary.
+  - The boundary is the database:
+    - least-privilege grants (read-only for the public in Stage 1)
+    - row-level security on every table
+    - CHECK constraints on the data
+    - a small set of controlled SECURITY DEFINER functions with pinned search paths
+    - provenance planned for visitor rows
+    - a hard separation between the canonical launch and the future sandbox
+  - That boundary is enforced and tested whether or not a caller is signed in.
+  - Adding Auth only to look production-like would add configuration, abuse surface (account creation) and cleanup work, without changing what the public can do.
+- **What this doesn't mean:**
+  - The system isn't "secure because it has no Auth".
+  - The absence of Auth has real costs:
+    - nobody can be attributed individually
+    - sandboxes can't be private per visitor
+    - limits can't be applied per person
+    - inside the future shared sandbox, griefing is an accepted residual risk (DR-013)
+- **Assumptions:** the data stays synthetic; nothing in the app needs to know who a visitor is.
+- **Consequences:**
+  - The Auth project settings still matter. If signups are open, anyone can obtain the `authenticated` role. That's harmless only while `authenticated` holds exactly `anon`'s privileges, so check 13 guards it, and the owner still checks the settings (release gate R-8).
+  - **Revisit this decision if:**
+    - real or sensitive data is added
+    - per-person attribution becomes a product requirement
+    - private per-visitor sandboxes are needed
+    - an OAuth integration (LinkedIn included) is wanted
+    - sandbox abuse occurs that the caps and cooldown can't contain
+- **Evidence:**
+  - EVAL-024: 0 Auth users and no identity providers in use.
+  - EVAL-041 and EVAL-048: catalog check 13 shows identical privileges for the two roles, locally and on live.
+
+## DR-021: Stage 1 security hardening: one migration, a read-only catalog test, a local behavior test
+
+- **Date:** 2026-10-02, 11:47 to 12:05.
+- **Status:** Accepted
+- **Implementation status:** in the repository and **verified locally on Postgres 17.10**. **Not applied to the live project**, because the single deploy path isn't established (DR-019, R-9).
+- **Context:** Phase 2B specified Stage 1 as steps S1 to S6, migrations M-1 to M-3, the catalog tests C-1 to C-14 and the behavior tests B-1 to B-3.
+- **Options considered:**
+  - one migration or three
+  - guarded statements (`if exists`) or strict ones
+  - the Phase 2B URL pattern as written, or a pattern that doesn't depend on the collation provider
+  - also changing the default privileges for functions, or not
+- **Decision:**
+  - **One migration, created with the Supabase CLI** (`supabase migration new`, CLI 2.119.0): `supabase/migrations/20261002115318_stage1_security_hardening.sql`.
+    - **M-1:** revoke `anon` and `authenticated` EXECUTE on `reset_demo_data()` and `set_gate_status(bigint, gate_status, text, text, text)`, revoke INSERT on `evidence`, and drop the policy `"Public append"`.
+    - **M-2:** the CHECK constraint `evidence_source_https`.
+    - **M-3:** revoke default table privileges for tables that `postgres` creates in `public` from `anon` and `authenticated`.
+    - The statements are strict. If the catalog differs from what they expect (a missing policy, a different signature), the migration fails instead of silently doing nothing.
+    - It adds no write path and no function.
+  - **The M-2 pattern deviates from the Phase 2B text on purpose:**
+    - The Phase 2B text used the POSIX classes `[:space:]` and `[:cntrl:]` for the path. The live database's collation provider is ICU (EVAL-036), and those classes follow the provider. So the rule could behave differently on live than in any local test.
+    - The implemented pattern lists its characters explicitly instead: the RFC 3986 URI characters, plus `%` followed by two hex digits.
+    - **Every accept and reject case in the Phase 2B table keeps its outcome** (EVAL-043).
+    - It's stricter in two ways. Raw non-ASCII text must be percent-encoded, as it must in a valid URI. And characters RFC 3986 excludes, such as `< > " \ { } | ^` and backtick, are rejected.
+    - It accepts IPv4 literals such as `https://192.0.2.10/`, because they're dotted ASCII labels. That's harmless here: no server ever fetches these URLs, and visitor URLs are never links (DR-017).
+  - **The default privileges for functions are deliberately not changed.** That's a separate, newly found issue (SEC-007). Fixing it needs a global change that affects every schema, so it's recorded for its own decision. Catalog check 9 guards the gap in the meantime.
+  - **New test files:**
+    - **`supabase/tests/security_catalog.sql`:** read-only, 17 checks plus an overall row, safe on production.
+    - **`supabase/tests/stage1_behavior.sql`:** local only and rolled back. It refuses to run where Supabase's `auth` or `supabase_migrations` schema exists. It has 24 checks, and its denials must carry SQLSTATE 42501.
+    - **`supabase/tests/local_roles.sql`:** now also creates `service_role` and mirrors live's per-schema default table privileges. Without that, a local build would hide the defaults M-3 removes.
+  - **App code:** one comment in `src/components/AppShell.tsx` no longer points future work at `reset_demo_data()` (DR-014). No behavior changed.
+- **Rationale:**
+  - It's the smallest change that removes every public write path and gives each removal a test that fails first.
+  - Building the local database from the same migrations, and checking that it matches live, makes local results evidence about production (EVAL-039).
+- **Assumptions:** Postgres 17.10 locally behaves like live's 17.11 for privileges and default ACLs (same major version).
+- **Consequences:**
+  - Once applied to live, the public surface is read-only: SELECT on 6 tables and 1 view, and no executable functions.
+  - The Supabase advisor lints 0028 and 0029 should then clear. That's expected, not verified.
+  - **If the file is applied through the connector,** Supabase records its own version, and DR-009 applies: the file is renamed to that recorded version.
+  - **If it's applied through the GitHub integration or the CLI,** the file's version is used as-is.
+  - Stage 2 must update catalog checks 9 and 15 in the same commit as the sandbox migration.
+- **Evidence:**
+  - EVAL-039 to EVAL-047: local results.
+  - EVAL-048 and EVAL-049: the live read-only posture before the migration.

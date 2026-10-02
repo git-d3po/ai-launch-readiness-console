@@ -7,7 +7,8 @@
   - The findings are confirmed as stated below.
   - Decisions D1 to D7 were approved afterwards and are recorded as DR-013 to DR-019 in
     [`DECISIONS.md`](../../DECISIONS.md).
-  - **No remediation has been implemented.**
+  - **No remediation had been implemented when this record was written.**
+  - **Update, Stage 1 (about 12:05):** Stage 1 is implemented in the repository and verified locally on Postgres 17, but **not applied to live** (§15, DR-021). Everything above §15 is the Phase 2B record as written, apart from the status columns in §9 and §11 and the items marked "Update" in §12 and §14.
 - **Related:**
   - [`findings.md`](findings.md): one record per finding
   - [`../evaluation/EVALUATION_LOG.md`](../evaluation/EVALUATION_LOG.md): the evidence, cited as EVAL-NNN
@@ -282,15 +283,17 @@ claim about the current live state, which this documentation commit didn't read.
 | Step | What | Depends on | Establishes | Status |
 |---|---|---|---|---|
 | S0 | Record decisions D1 to D7 | None | None | **Done** in the commit that added this record (DR-013 to DR-019) |
-| S1 | Add the read-only catalog test `supabase/tests/security_catalog.sql` (proposed; doesn't exist yet). It should fail first. | None | Guards I2 to I6, I9 | Not started |
-| S2 | Migration M-1: revoke the public write paths | D1 | I3, I4, I7 | Not started |
-| S3 | Migration M-2: https check on `evidence.source` | None | I10 | Not started |
-| S4 | Migration M-3: default privileges | None | I9 | Not started |
-| S5 | **Verify on production:**<br>• the catalog test passes<br>• the advisor shows no 0028 or 0029 lints<br>• migration hashes match<br>• the fingerprints match<br>• the integrity suite passes 6 of 6 **locally** | S1 to S4 | All Stage 1 invariants | Not started |
-| S6 | The owner checks the Auth dashboard settings and records them | None | Closes M1 | Not started |
+| S1 | Add the read-only catalog test `supabase/tests/security_catalog.sql`. It should fail first. | None | Guards I2 to I6, I9 | **Done:** committed; fails first on the pre-Stage-1 build and on live (EVAL-041, EVAL-048) |
+| S2 | Migration M-1: revoke the public write paths | D1 | I3, I4, I7 | **In the repository, verified locally;** not applied to live |
+| S3 | Migration M-2: https check on `evidence.source` | None | I10 | **In the repository, verified locally** (refined pattern, §15); not applied to live |
+| S4 | Migration M-3: default privileges | None | I9 | **In the repository, verified locally on Postgres 17;** not applied to live |
+| S5 | **Verify on production:**<br>• the catalog test passes<br>• the advisor shows no 0028 or 0029 lints<br>• migration hashes match<br>• the fingerprints match<br>• the integrity suite passes 6 of 6 **locally** | S1 to S4 | All Stage 1 invariants | **Blocked** by R-9. The local equivalents pass (§15) |
+| S6 | The owner checks the Auth dashboard settings and records them | None | Closes M1 | Not started (owner action) |
 | Stage 2 | **At the start of the gate-sheet phase:**<br>• M-4: provenance, sandbox columns, composite keys, text checks<br>• M-5: `set_gate_status` gains an origin; the seed builds the sandbox<br>• M-6: the three sandbox functions<br>• application items A3 to A9 | D1 to D6 | I11 to I16 | Not started |
 
 Stage 1 (S1 to S6) is the next implementation phase.
+
+**Update, Stage 1:** S1 to S4 are done in the repository. S5 and S6 wait on the owner (R-9, R-8). See §15.
 
 ### Migration specifications
 
@@ -322,6 +325,8 @@ drop policy "Public append" on public.evidence;
   ```
 
 **M-2 `evidence_source_https` (Stage 1)**
+
+_Update: implemented with a refined pattern that doesn't depend on the collation provider. The specification below is kept as written; see §15._
 
 ```sql
 alter table public.evidence add constraint evidence_source_https check (
@@ -473,14 +478,14 @@ inside a rolled-back transaction.
 | Gate | Condition | Status |
 |---|---|---|
 | R-1 | D1 to D7 recorded in `DECISIONS.md`, and the brief's "Reset demo data" line updated | **Decisions recorded** in the commit that added this record. The brief line itself is kept verbatim as history, and a notice at the top of `PROJECT_BRIEF.md` supersedes it. |
-| R-2 | M-1, M-2 and M-3 applied through the single chosen path, with repository files renamed to the recorded versions | Not started |
-| R-3 | C-1 to C-13 pass against production | Not started |
-| R-4 | B-1 to B-3 pass on an ephemeral database built from the repository, and C-12 parity holds | Not started |
-| R-5 | The integrity suite passes 6 of 6 locally; Vitest, typecheck and build are green | Not started (for the remediated schema) |
-| R-6 | The security advisor shows no `anon` or `authenticated` SECURITY DEFINER lints | Not started |
-| R-7 | The history and bundle secret scans are clean | Not started (for the remediated build) |
-| R-8 | The Auth dashboard settings are checked and recorded; signups disabled or confirmed harmless | Not started |
-| R-9 | The GitHub integration deploy settings are confirmed before anything merges to `main` | Not started |
+| R-2 | M-1, M-2 and M-3 applied through the single chosen path, with repository files renamed to the recorded versions | **Blocked:** migration written and verified locally; no single path yet (R-9) |
+| R-3 | C-1 to C-13 pass against production | **Not met.** The committed catalog test fails on live in 4 of 17 checks until the migration is applied (EVAL-048) |
+| R-4 | B-1 to B-3 pass on an ephemeral database built from the repository, and C-12 parity holds | **Met locally:** 24 of 24 (EVAL-043); pre-Stage-1 parity with live holds (EVAL-039) |
+| R-5 | The integrity suite passes 6 of 6 locally; Vitest, typecheck and build are green | **Met** (EVAL-044, EVAL-047) |
+| R-6 | The security advisor shows no `anon` or `authenticated` SECURITY DEFINER lints | **Not met** on live: 0028 and 0029 still list the two functions (EVAL-049) |
+| R-7 | The history and bundle secret scans are clean | Pattern-based scan of the Stage 1 commit (EVAL-050); bundle unchanged |
+| R-8 | The Auth dashboard settings are checked and recorded; signups disabled or confirmed harmless | Not started (owner action). Still required under DR-020 (no Auth): open signups would hand out the `authenticated` role, which catalog check 13 keeps identical to `anon` |
+| R-9 | The GitHub integration deploy settings are confirmed before anything merges to `main` | **Open, blocking.** The integration can deploy from `main` on every plan (EVAL-037); its setting is dashboard-only |
 | R-10 | The gate-sheet phase begins with M-4 to M-6 and B-4, before any write UI exists | Not started |
 
 **Before public deployment:**
@@ -501,6 +506,9 @@ These remain **unknown**. Don't treat any of them as verified.
 - **Deployment:** the GitHub/Supabase integration settings (which branch, if any, deploys migrations).
 - **Data API settings:** confirmed only by the owner's report from the creation form (DR-005).
 - **Postgres 17:** the MAINTAIN privilege behavior for M-3. It was simulated on Postgres 16 without MAINTAIN.
+  - **Update:** verified on a local Postgres 17.10 build that mirrors live's default ACL (EVAL-040). Not probed on live, because that needs DDL.
+- **GitHub integration "Deploy to production" (added in Stage 1):** on or off, and which branch it deploys. The docs say it works without branching (EVAL-037). It blocks R-2 and R-9.
+- **Function default privileges (added in Stage 1):** a global fix for SEC-007 hasn't been decided or tested.
 - **Default-privileges toggle:** whether the dashboard's "Default privileges for new entities" toggle rewrites `pg_default_acl`.
 - **Per-IP limiting:** whether `X-Forwarded-For` can be spoofed for `db_pre_request`-style limits.
 - **Database settings:** SSL enforcement and network restrictions (not read in either audit).
@@ -545,4 +553,65 @@ The Phase 2B report ended with draft entries numbered DR-01 to DR-13. That numbe
 | DR-10 No Auth in Phase 1 | DR-006, accepted |
 | DR-11 Destructive tests local only | Specified as invariant I19; applied as practice since Phase 2B, not separately decided |
 | DR-12 Single migration deploy path | DR-019 (D7), accepted |
-| DR-13 Default privileges revoked, guarded by a catalog test | Specified as M-3 and C-9 for Stage 1; not separately decided |
+| DR-13 Default privileges revoked, guarded by a catalog test | Specified as M-3 and C-9 for Stage 1. **Update:** implemented as part of DR-021 (table defaults only; see SEC-007 for functions) |
+
+## 15. Stage 1 implementation (2026-10-02, 11:47 to 12:05)
+
+**Baseline:** `ef611766c8d308a344d78d12e49e5f9079425602`. **Decisions:** DR-020 (no Auth) and DR-021 (Stage 1).
+**Evidence:** EVAL-036 to EVAL-050.
+
+**What was built** (all in the repository):
+
+| Item | File | Notes |
+|---|---|---|
+| M-1, M-2, M-3 | `supabase/migrations/20261002115318_stage1_security_hardening.sql` | Created with `supabase migration new` (CLI 2.119.0). Strict statements; no new function, no new write path |
+| Catalog test (S1; C-1 to C-10, C-12) | `supabase/tests/security_catalog.sql` | Read-only, 17 checks. Check 15 holds the expected Stage 1 hashes of seven fingerprint parts |
+| Behavior test (B-1 to B-3) | `supabase/tests/stage1_behavior.sql` | Local only; refuses to run on a Supabase project; rolled back; denials must be SQLSTATE 42501 |
+| Local mirror of live's default privileges | `supabase/tests/local_roles.sql` | Adds `service_role` and live's per-schema table defaults, so local builds show what M-3 removes |
+| Stale comment | `src/components/AppShell.tsx` | No longer points future work at `reset_demo_data()`; no behavior change |
+
+**How M-2 differs from the specification above:**
+- The specification's path class `[^[:space:][:cntrl:]]` depends on the database's collation provider, and live uses ICU (EVAL-036).
+- The implemented path is an explicit RFC 3986 list: `[]A-Za-z0-9._~:/?#[@!$&'()*+,;=-]`, or `%` followed by two hex digits. The scheme, host and port parts are unchanged.
+- Every case in the EVAL-030 table keeps its outcome.
+- **Newly rejected:**
+  - raw non-ASCII text (it must be percent-encoded)
+  - `< > " \ { } | ^` and backtick
+  - malformed `%` escapes
+  - Unicode spaces, C1 controls, and bidi and zero-width characters
+- **Accepted by construction:** IPv4 literals with dotted numeric labels.
+
+**Verified locally on Postgres 17.10 (ICU)**, on a build matching live's pre-Stage-1 state (EVAL-039):
+- **Default privileges:** M-3 removes TRUNCATE, REFERENCES, TRIGGER and MAINTAIN on new tables for `anon` and `authenticated` (EVAL-040).
+- **Catalog test:**
+  - 17 of 17 on the Stage 1 build.
+  - Fails exactly checks 3, 9, 14 and 15 on the pre-Stage-1 build (EVAL-041).
+  - 16 of 17 checks flip under injected regressions; check 3 is covered by the pre-Stage-1 build (EVAL-042).
+- **Behavior test:** 24 of 24 on the Stage 1 build; 16 of 24 on the pre-Stage-1 build, with the expected failures (EVAL-043).
+- **Integrity suite:** 6 of 6, and the seed is intact (EVAL-044).
+- **Fingerprint:** only constraints, policies, column write grants and functions changed; `seed_data` is unchanged (EVAL-045).
+- **API:**
+  - The app's read queries return 200 through PostgREST 14.18.
+  - Writes and mutation RPCs return 42501, as HTTP 401 for `anon` and 403 for `authenticated` (EVAL-046).
+- **Application:** unit tests, typecheck and build are green (EVAL-047).
+
+**Live, read-only, before any migration** (EVAL-048, EVAL-049):
+- The catalog test passes 13 of 17 and fails exactly the four checks the migration fixes.
+- The advisor still lists lints 0028 and 0029 for the two functions.
+
+**Not done, and why:**
+- **The migration wasn't applied to live.** DR-019 requires one confirmed deploy path. The GitHub integration can deploy migrations from `main` on any plan (EVAL-037), and whether it's turned on is only visible in the dashboard. Applying through the connector could leave two competing mechanisms.
+- **Live wasn't verified after the migration.** The expected live result is 17 of 17 on the catalog test, the fingerprint parts in EVAL-045, and no 0028/0029 lints. That's unverified.
+- **A new latent finding, SEC-007, was recorded rather than fixed.** Functions that `postgres` creates are executable by PUBLIC by default. The fix is a global default-privilege change outside M-3's table scope.
+
+**To finish Stage 1:**
+1. The owner reads the GitHub integration settings and picks one deploy path (DR-019).
+2. The migration is applied through that path. If that's the connector, the file is renamed to the recorded version (DR-009).
+3. Read-only production verification:
+   - `list_migrations`
+   - migration parity (EVAL-022's query)
+   - `security_catalog.sql`, expecting 17 of 17
+   - `fingerprint.sql`, expecting the EVAL-045 values
+   - the advisors
+   - data counts
+4. The owner records the Auth settings (R-8).

@@ -37,6 +37,10 @@
 -- Data API configuration. md5 is a change detector here, not a security control.
 -- The live comparison also needs the live database to be at the seed, since
 -- seed_data hashes the table contents.
+--
+-- Check 15 of supabase/tests/security_catalog.sql copies seven of these parts
+-- (constraints, policies, rls+owners, table_grants, column_write_grants,
+-- functions, views); keep the two in step. EVAL-045 records the Stage 1 hashes.
 
 with
 cols as (select string_agg(format('%s.%s %s notnull=%s default=%s identity=%s', c.relname, a.attname, format_type(a.atttypid, a.atttypmod), a.attnotnull, coalesce(pg_get_expr(d.adbin, d.adrelid), ''), a.attidentity), E'\n' order by c.relname, a.attnum) s

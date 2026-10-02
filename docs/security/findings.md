@@ -9,7 +9,10 @@ One record per confirmed security finding.
 **Status fields:**
 - **Confirmed:** the evidence shows the finding on the baseline.
 - **Remediation specified:** the fix is written down in the reconciliation record.
-- **Implemented:** the fix is merged, applied through the deploy path, and verified by its tests.
+- **In the repository:** the fix is committed and passes its tests on a local build made from the repository's migrations.
+- **Applied to live:** the fix is applied to the live project through the single deploy path (DR-019) and verified there with read-only checks.
+
+(Before Stage 1 this record had a single "Implemented" column, meaning merged, applied and verified. It was split so that local verification is never mistaken for a production change.)
 
 **Severity scale (Phase 2B):**
 - **High:** unauthenticated, low effort, and material integrity or availability impact on the public demo today.
@@ -18,19 +21,21 @@ One record per confirmed security finding.
 
 Audit 1's original rating is kept beside the revised one.
 
-| ID | Finding | Audit 1 ID | Original | Revised | Confirmed | Remediation specified | Implemented |
-|---|---|---|---|---|---|---|---|
-| SEC-001 | Anonymous callers can forge readiness and impersonate approvers | C1 | Critical | High | Yes | Yes | **No** |
-| SEC-002 | Anonymous callers can truncate and re-seed all launch data | C2 | Critical | Medium | Partially (it restores the seed) | Yes | **No** |
-| SEC-003 | Unbounded public writes can push the database into read-only mode | H1, N1 | High | High | Yes | Yes | **No** |
-| SEC-004 | Visitor text is shown as authoritative on the canonical overview | H3, H4 | High, High | Medium; H4 Low | Yes | Yes | **No** |
-| SEC-005 | `evidence.source` accepts `javascript:` and other unsafe URLs | H2 | High | Low (latent) | Yes | Yes | **No** |
-| SEC-006 | Default privileges give API roles privileges on future tables | H5 | High | Low | Yes (facts) | Yes | **No** |
+| ID | Finding | Audit 1 ID | Original | Revised | Confirmed | Remediation specified | In the repository | Applied to live |
+|---|---|---|---|---|---|---|---|---|
+| SEC-001 | Anonymous callers can forge readiness and impersonate approvers | C1 | Critical | High | Yes | Yes | Stage 1 part: yes | **No** |
+| SEC-002 | Anonymous callers can truncate and re-seed all launch data | C2 | Critical | Medium | Partially (it restores the seed) | Yes | Stage 1 part: yes | **No** |
+| SEC-003 | Unbounded public writes can push the database into read-only mode | H1, N1 | High | High | Yes | Yes | Stage 1 part (zero public writes): yes | **No** |
+| SEC-004 | Visitor text is shown as authoritative on the canonical overview | H3, H4 | High, High | Medium; H4 Low | Yes | Yes | Stage 1 part: yes | **No** |
+| SEC-005 | `evidence.source` accepts `javascript:` and other unsafe URLs | H2 | High | Low (latent) | Yes | Yes | Database rule: yes | **No** |
+| SEC-006 | Default privileges give API roles privileges on future tables | H5 | High | Low | Yes (facts) | Yes | Yes | **No** |
+| SEC-007 | Functions that `postgres` creates are executable by PUBLIC by default | None (new in Stage 1) | n/a | Low (latent) | Yes | **No** (needs a decision) | No (guarded by catalog check 9) | No |
 
-**Nothing below is implemented.**
-- No remediation migration exists in `supabase/migrations/`.
-- None was applied to the live project by these sessions.
-- The Phase 1 public write paths were still granted when live was last read (10:58 UTC).
+**Status after Stage 1 (2026-10-02, about 12:05):**
+- **In the repository:** migration `supabase/migrations/20261002115318_stage1_security_hardening.sql` implements the Stage 1 part of SEC-001 to SEC-006. It was verified on a local Postgres 17 build (EVAL-039 to EVAL-047).
+- **Not applied to the live project.** The single deploy path couldn't be established (DR-019, release gate R-9).
+- **Live, read at 12:00:** it still grants the Phase 1 public write paths. The catalog test fails there exactly where the migration fixes things (EVAL-048).
+- **Stage 2 controls:** none are built (provenance, visitor text checks, caps, cooldown, URL rendering).
 
 ---
 
@@ -86,7 +91,8 @@ Audit 1's original rating is kept beside the revised one.
 - **Current status:**
   - Confirmed: **yes**
   - Remediation specified: **yes**
-  - Implemented: **no**
+  - In the repository, verified locally: **yes, for Stage 1.** M-1 removes every public write path to the canonical launch (catalog checks 3 and 9; behavior checks 3 to 18; HTTP 401/403 with 42501; EVAL-041, EVAL-043, EVAL-046). The Stage 2 controls (provenance, the sandbox functions, labels) aren't built.
+  - Applied to live: **no.** Live still grants the write paths (EVAL-048).
 
 ## SEC-002: Anonymous callers can truncate and re-seed all launch data
 
@@ -130,7 +136,8 @@ Audit 1's original rating is kept beside the revised one.
 - **Current status:**
   - Confirmed: **partially**. The erasure and lock behavior are confirmed; it can't forge state.
   - Remediation specified: **yes**
-  - Implemented: **no**
+  - In the repository, verified locally: **yes, for Stage 1.** `anon` and `authenticated` can no longer execute `reset_demo_data()`, and the owner keeps it (catalog check 9; behavior checks 9 and 17; HTTP 401/403). The sandbox reset is Stage 2 and isn't built.
+  - Applied to live: **no** (EVAL-048, EVAL-049).
 
 ## SEC-003: Unbounded public writes can push the database into read-only mode
 
@@ -178,7 +185,8 @@ Audit 1's original rating is kept beside the revised one.
 - **Current status:**
   - Confirmed: **yes**
   - Remediation specified: **yes**
-  - Implemented: **no**
+  - In the repository, verified locally: **yes, for Stage 1.** The public write bound is zero, because no table write or function remains for the API roles (catalog checks 3 to 9; behavior checks 3 to 18). The per-gate caps and the cooldown are Stage 2 and aren't built.
+  - Applied to live: **no.**
 
 ## SEC-004: Visitor text is shown as authoritative on the canonical overview
 
@@ -226,7 +234,8 @@ Audit 1's original rating is kept beside the revised one.
 - **Current status:**
   - Confirmed: **yes**
   - Remediation specified: **yes**
-  - Implemented: **no**
+  - In the repository, verified locally: **yes, for Stage 1.** No visitor text can reach the canonical launch, because `set_gate_status` and evidence INSERT are closed to the API roles. The Stage 2 text checks, fixed decider and server-set dates aren't built.
+  - Applied to live: **no.**
 
 ## SEC-005: `evidence.source` accepts `javascript:` and other unsafe URLs
 
@@ -261,7 +270,8 @@ Audit 1's original rating is kept beside the revised one.
 - **Current status:**
   - Confirmed: **yes**
   - Remediation specified: **yes**
-  - Implemented: **no**
+  - In the repository, verified locally: **yes, for the database rule.** The constraint `evidence_source_https` passes 12 of 12 accept cases and 33 of 33 reject cases, including every Phase 2B case (EVAL-043). The implemented pattern refines the Phase 2B text so that it doesn't depend on the collation provider (DR-021). The rendering rule (A6) is Stage 2; nothing renders `source` today.
+  - Applied to live: **no.**
 
 ## SEC-006: Default privileges give API roles privileges on future tables
 
@@ -294,7 +304,46 @@ Audit 1's original rating is kept beside the revised one.
 - **Current status:**
   - Confirmed: **yes** (facts)
   - Remediation specified: **yes**
-  - Implemented: **no**
+  - In the repository, verified locally: **yes.** Migration M-3 was verified on Postgres 17.10: a new table gives `anon` and `authenticated` none of 8 privileges, MAINTAIN included, and `service_role` is unchanged (EVAL-040; catalog check 14; behavior check 21).
+  - Applied to live: **no.** Live's per-schema default still grants TRUNCATE, REFERENCES, TRIGGER and MAINTAIN (EVAL-036, EVAL-048).
+
+## SEC-007: Functions that `postgres` creates are executable by PUBLIC by default
+
+- **Found:** 2026-10-02, during Stage 1 verification. It isn't an Audit 1 item.
+- **Finding:**
+  - A function that `postgres` creates in `public` is executable by PUBLIC, and therefore by `anon` and `authenticated`, unless its migration revokes that explicitly.
+  - Live's default-privilege row for functions (`{postgres=X/postgres}`) is a **per-schema** entry. Postgres adds per-schema entries to its built-in global default, which gives EXECUTE to PUBLIC; it doesn't replace it.
+  - There's no global entry for `postgres` that removes it.
+- **Attack surface:** a future migration that adds a function, especially a SECURITY DEFINER one, without `revoke all on function ... from public`. Such a function would be callable at `/rest/v1/rpc/<name>`.
+- **Evidence:**
+  - **EVAL-036:** live's default ACL rows, with their namespace.
+  - **EVAL-040:** on a local Postgres 17.10 build mirroring live, a new function had `proacl` NULL (the built-in default) and was executable by `anon`, `authenticated` and `service_role`. That was so before and after Stage 1.
+  - **EVAL-042:** a new SECURITY DEFINER function was flagged by catalog check 9 as executable by both API roles.
+  - **Historical corroboration:** `rls_auto_enable()`, owned by `postgres` with a NULL ACL, was executable by `anon` until DR-010 (EVAL-009).
+- **Correction of earlier analysis:**
+  - EVAL-025 and SEC-006's reason for the severity change both said functions that `postgres` creates "grant nothing by default". That read the per-schema row without the built-in default, and is wrong for functions.
+  - Both records are left as written. This record supersedes that statement.
+- **Original severity:** none (new).
+- **Severity:** Low (latent).
+  - No current function is exposed: catalog check 9 passes locally after Stage 1, and on live the only executable functions are the two that M-1 revokes.
+  - Every function this project defines revokes PUBLIC explicitly.
+- **Remediation:** **not decided.**
+  - **Candidate:** `alter default privileges for role postgres revoke execute on functions from public;`.
+    - It has to be global, because a per-schema REVOKE can't remove a global default.
+    - It would therefore change defaults for functions `postgres` creates in **every** schema, and needs its own review and decision.
+  - **Meanwhile:**
+    - every migration keeps `revoke all on function ... from public`
+    - catalog check 9, with an empty allowlist in Stage 1, fails if any function becomes executable by the API roles
+- **Rejected alternatives:**
+  - **A per-schema revoke in `public`:** no effect against the built-in global default.
+  - **Folding the fix into Stage 1 M-3:** M-3 was scoped to tables, and the global change affects unrelated schemas.
+- **Invariants:** I4 (the function allowlist).
+- **Regression tests:** catalog check 9; EVAL-042 shows it catches the case.
+- **Current status:**
+  - Confirmed: **yes**, on a local PG17 mirror, plus live catalog evidence. It wasn't probed on live, because that needs DDL.
+  - Remediation specified: **no** (needs a decision).
+  - In the repository: no fix; guarded by check 9.
+  - Applied to live: no.
 
 ---
 

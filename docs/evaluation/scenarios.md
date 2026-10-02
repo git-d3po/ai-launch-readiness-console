@@ -3,9 +3,10 @@
 The behaviors that must stay testable as the system changes. Each scenario names the property, the
 steps, the expected result, what is true **today**, and the specified tests that will automate it.
 
-**Two labels:**
+**Three labels:**
 - **Implemented rule, current check exists:** the rule is in the schema today, and a committed check covers it. The last recorded result is cited; this documentation commit didn't re-run the destructive integrity suite.
 - **Specification / future regression scenario:** the expected behavior is **not** true yet, or no test exists yet. It describes what Stage 1 or Stage 2 must make true. Nothing here should be read as a passing test.
+- **Implemented in the repository and verified locally; not applied to live:** (added with Stage 1) the change and its committed tests exist and pass on a local Postgres 17 build, but **the live project doesn't have the change yet** (DR-021, DR-019). On live, the "Today" behavior still applies.
 
 **Rules for every behavior scenario** (Phase 2B invariant I19):
 - Run only against a local or ephemeral database built from this repository, never against production.
@@ -18,20 +19,25 @@ Evidence IDs (EVAL-NNN) are in [`EVALUATION_LOG.md`](EVALUATION_LOG.md).
 
 | ID | Property | Label | Protects |
 |---|---|---|---|
-| A | Anonymous forged evidence or status changes can't alter the canonical launch | Specification / future regression scenario | SEC-001 |
-| B | Canonical reset isn't available to public visitors | Specification / future regression scenario | SEC-002 |
-| C | Unbounded evidence insertion isn't possible | Specification / future regression scenario | SEC-003 |
+| A | Anonymous forged evidence or status changes can't alter the canonical launch | Stage 1: Implemented in the repository and verified locally; not applied to live. Stage 2 part: specification | SEC-001 |
+| B | Canonical reset isn't available to public visitors | Stage 1: Implemented in the repository and verified locally; not applied to live. Sandbox reset: specification | SEC-002 |
+| C | Unbounded evidence insertion isn't possible | Stage 1 (zero public inserts): Implemented in the repository and verified locally; not applied to live. Sandbox caps: specification | SEC-003 |
 | D | Passed requires evidence | Implemented rule, current check exists (Stage 2 part is a specification) | DR-001, DR-002 |
 | E | Waived requires waiver text, and the text survives the transition | Implemented rule, current check exists (Stage 2 part is a specification) | DR-008 |
 | F | Visitor provenance is never confused with canonical evidence | Specification / future regression scenario | SEC-001, SEC-004 |
-| G | Unsafe evidence URLs are rejected | Specification / future regression scenario | SEC-005 |
-| H | New tables and the two API roles stay closed by default | Specification / future regression scenario | SEC-006 |
+| G | Unsafe evidence URLs are rejected | Database rule: Implemented in the repository and verified locally; not applied to live. Rendering rule: specification | SEC-005 |
+| H | New tables and the two API roles stay closed by default | Implemented in the repository and verified locally; not applied to live (tables). Functions: open finding SEC-007 | SEC-006 |
 
 ---
 
 ## Scenario A: anonymous forged evidence or status changes can't alter the canonical launch
 
 - **Label:** Specification / future regression scenario. **Today the opposite is true:** this is SEC-001.
+- **Stage 1 status:** Implemented in the repository and verified locally; not applied to live.
+  - Steps 1 to 4 are denied with 42501 for both roles, and the seed is unchanged (`stage1_behavior.sql`, EVAL-043).
+  - Catalog checks 3 to 9 pass (EVAL-041).
+  - Over HTTP the writes return 401/403 (EVAL-046).
+  - Live still allows steps 1 to 3 (EVAL-048).
 - **Becomes true at:** Stage 1 (migration M-1). Stage 2 extends it to the sandbox functions.
 - **Invariants:** I3, I4, I7. **Decision:** DR-013.
 - **Setup:** an ephemeral database from the repository migrations plus the Stage 1 migrations, at the seed.
@@ -52,6 +58,10 @@ Evidence IDs (EVAL-NNN) are in [`EVALUATION_LOG.md`](EVALUATION_LOG.md).
 ## Scenario B: canonical reset isn't available to public visitors
 
 - **Label:** Specification / future regression scenario. **Today `anon` can run it** (SEC-002).
+- **Stage 1 status:** Implemented in the repository and verified locally; not applied to live.
+  - Step 1 is denied with 42501 (behavior checks 9 and 17; HTTP 401/403).
+  - The owner path still works: the integrity suite's check 5 passed (EVAL-044).
+  - Live still allows step 1 (EVAL-048, EVAL-049).
 - **Becomes true at:** Stage 1 (M-1). The sandbox reset follows in Stage 2.
 - **Invariants:** I4, I7, I13. **Decision:** DR-014.
 - **Steps:**
@@ -74,6 +84,7 @@ Evidence IDs (EVAL-NNN) are in [`EVALUATION_LOG.md`](EVALUATION_LOG.md).
 ## Scenario C: unbounded evidence insertion isn't possible
 
 - **Label:** Specification / future regression scenario.
+- **Stage 1 status:** the zero-insert bound is Implemented in the repository and verified locally; not applied to live (behavior checks 3 and 11; catalog check 3). The Stage 2 caps aren't built.
 - **Becomes true at:**
   - Stage 1 bounds public inserts at zero.
   - Stage 2 bounds sandbox inserts with caps.
@@ -107,6 +118,7 @@ Evidence IDs (EVAL-NNN) are in [`EVALUATION_LOG.md`](EVALUATION_LOG.md).
   - Check 1 passed locally (EVAL-002, EVAL-030) and on live (EVAL-007).
   - Mutation testing showed check 1 detects the rule's removal (EVAL-003), and the unit test does too (EVAL-004).
   - The unit test's latest run is EVAL-033.
+  - **Stage 1:** check 1 passed on the local Postgres 17 Stage 1 build (EVAL-044), and the unit tests passed again (EVAL-047).
 - **Known limit:** evidence is checked at the time of the change. That holds because evidence is append-only for the public: nobody but the owner can delete the evidence that justified a Passed.
 - **Stage 2 extension:** `sandbox_set_gate_status` with `Passed` on a sandbox gate without evidence is denied (B-4).
 
@@ -126,6 +138,7 @@ Evidence IDs (EVAL-NNN) are in [`EVALUATION_LOG.md`](EVALUATION_LOG.md).
 - **Last recorded results:**
   - Both passed locally (EVAL-005, EVAL-030) and on live (EVAL-007).
   - A mutant that skipped copying the text made check 6 FAIL, once the check stopped vanishing on NULL (EVAL-005).
+  - **Stage 1:** checks 2 and 6 passed on the local Postgres 17 Stage 1 build (EVAL-044).
 - **Stage 2 extension:** waiving a sandbox gate with blank text is denied (B-4). The 5-minute reset restores `waiver_rationale` from the source gate (I13).
 
 ## Scenario F: visitor provenance is never confused with canonical evidence
@@ -152,6 +165,10 @@ Evidence IDs (EVAL-NNN) are in [`EVALUATION_LOG.md`](EVALUATION_LOG.md).
 ## Scenario G: unsafe evidence URLs are rejected
 
 - **Label:** Specification / future regression scenario.
+- **Stage 1 status:** the database rule is Implemented in the repository and verified locally; not applied to live.
+  - 12 of 12 accept cases are accepted, and 33 of 33 reject cases are rejected by `evidence_source_https`, the empty string included (EVAL-043).
+  - The implemented pattern refines the Phase 2B text (DR-021).
+  - The rendering rule (A6) isn't built, and nothing renders `source`.
 - **Becomes true at:**
   - Stage 1 (M-2) for the database rule.
   - Stage 2 (A6) for rendering.
@@ -186,6 +203,10 @@ Evidence IDs (EVAL-NNN) are in [`EVALUATION_LOG.md`](EVALUATION_LOG.md).
 ## Scenario H: new tables and the two API roles stay closed by default
 
 - **Label:** Specification / future regression scenario.
+- **Stage 1 status:** for tables, Implemented in the repository and verified locally; not applied to live.
+  - Step 1 passes on Postgres 17.10, MAINTAIN included (EVAL-040; behavior check 21; catalog check 14).
+  - Step 2 passes (catalog check 13).
+  - **Functions aren't covered:** a new `postgres`-created function is still executable by PUBLIC (SEC-007). Catalog check 9 guards that.
 - **Becomes true at:** Stage 1 (M-3).
 - **Invariants:** I3, I6, I9.
 - **Steps:**

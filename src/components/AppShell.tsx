@@ -33,7 +33,8 @@ export function AppShell() {
             </NavLink>
           </nav>
 
-          {/* Placeholder until the reset flow (confirmation dialog + reset_demo_data) is built. */}
+          {/* Placeholder until the Stage 2 sandbox reset (confirmation dialog + sandbox_reset, DR-014) is built.
+              reset_demo_data() is owner-only since Stage 1. */}
           <button
             type="button"
             disabled
