@@ -1,6 +1,7 @@
-import { type ReactNode, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { focusRing } from '../components/AppShell';
+import { StatusChip } from '../components/StatusChip';
 import { fetchLaunchRows, formatTargetDate, type LaunchRow } from '../lib/launches';
 import { supabase } from '../lib/supabase';
 
@@ -111,18 +112,5 @@ function LaunchesTable({ rows }: { rows: LaunchRow[] }) {
         </tbody>
       </table>
     </div>
-  );
-}
-
-// Status colors only: emerald for Ready, red for Not ready.
-function StatusChip({ tone, children }: { tone: 'success' | 'danger'; children: ReactNode }) {
-  const color =
-    tone === 'success'
-      ? 'bg-emerald-50 text-emerald-800 ring-emerald-700/25 dark:bg-emerald-950 dark:text-emerald-300 dark:ring-emerald-400/25'
-      : 'bg-red-50 text-red-800 ring-red-700/25 dark:bg-red-950 dark:text-red-300 dark:ring-red-400/25';
-  return (
-    <span className={`inline-flex rounded-md px-1.5 py-px font-medium ring-1 ring-inset motion-safe:animate-fade-in ${color}`}>
-      {children}
-    </span>
   );
 }
