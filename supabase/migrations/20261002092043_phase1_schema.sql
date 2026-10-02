@@ -115,7 +115,15 @@ create table public.decisions (
   risk_id bigint references public.risks (id),
   from_status public.gate_status,
   to_status public.gate_status,
+  -- Copied from the waiver on a transition to Waived, so the audit trail keeps
+  -- it after the gate leaves Waived and gates.waiver_rationale is cleared.
+  waiver_rationale text check (char_length(waiver_rationale) <= 2000),
   constraint decisions_at_most_one_subject check (num_nonnulls(gate_id, risk_id) <= 1),
+  constraint decisions_waiver_rationale_only_on_waive check (
+    case when to_status = 'Waived' then btrim(coalesce(waiver_rationale, '')) <> ''
+         else waiver_rationale is null
+    end
+  ),
   constraint decisions_status_change_shape check (
     (kind = 'status_change'
       and gate_id is not null
@@ -223,6 +231,7 @@ begin
     raise exception 'A waiver rationale is required to waive a gate';
   end if;
 
+  -- The gate holds the waiver text only while Waived; the decision row keeps it.
   update public.gates g
   set status = new_status,
       waiver_rationale = case when new_status = 'Waived' then btrim(set_gate_status.waiver_rationale) end,
@@ -230,7 +239,7 @@ begin
   where g.id = set_gate_status.gate_id;
 
   insert into public.decisions
-    (launch_id, kind, decision, rationale, decided_by, gate_id, from_status, to_status)
+    (launch_id, kind, decision, rationale, decided_by, gate_id, from_status, to_status, waiver_rationale)
   values (
     v_gate.launch_id,
     'status_change',
@@ -239,7 +248,8 @@ begin
     btrim(set_gate_status.decided_by),
     set_gate_status.gate_id,
     v_gate.status,
-    new_status
+    new_status,
+    case when new_status = 'Waived' then btrim(set_gate_status.waiver_rationale) end
   )
   returning id into v_decision_id;
 

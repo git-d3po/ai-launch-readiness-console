@@ -143,7 +143,7 @@ One launch: **"Halcyon Support Copilot"**, a fictional company's AI support copi
 
 ### 3.3 Proposed seed layout
 
-All 17 gates required. Result: "6 of 17 required gates passed", 11 blockers.
+All 16 gates required. Result: "6 of 16 passed", 10 blockers.
 
 | Category | Gate | Status | Evidence (from seed facts only) |
 |---|---|---|---|
@@ -233,7 +233,7 @@ Tradeoff: Lovable's agent writes the UI code, so quality control is through revi
 
 | # | Question | Proposed default |
 |---|---|---|
-| 1 | Do the four deterministic safety rules count as Passed with Document evidence? Requiring Test evidence changes the headline from 6 of 17 to 2 of 17. | Passed with Document evidence |
+| 1 | Do the four deterministic safety rules count as Passed with Document evidence? Requiring Test evidence changes the headline from 6 of 16 to 2 of 16. | Passed with Document evidence |
 | 2 | Should confirmed gaps (prompt injection, single instance, SQLite) be Failed or In progress? | Failed |
 | 3 | What are the target date and launch owner? Neither is in the brief. | Clearly marked placeholders |
 | 4 | Is the risk register read-only in Phase 1, with decisions created only by gate status changes? Or do we need risk create/edit and manual decisions? | Read-only risks; status-change decisions only |

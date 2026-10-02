@@ -1,12 +1,14 @@
 -- Phase 1 integrity checks. Run as the database owner, for example in the
--- Supabase SQL Editor. The final SELECT returns one PASS or FAIL row per check.
+-- Supabase SQL Editor. The final SELECT returns one PASS or FAIL row per check;
+-- a NULL comparison (missing row or value) counts as FAIL.
 --
--- The script changes one gate (check 3) and then calls reset_demo_data()
--- (check 5), so it ends with the database back at the seed. Any edits made
--- through the app are discarded too.
+-- The script changes gates (checks 3 and 6) and then calls reset_demo_data()
+-- (check 5, run last), so it ends with the database back at the seed. Any edits
+-- made through the app are discarded too.
 
-drop table if exists pg_temp.check_results;
-create temp table check_results (
+-- No DROP or DELETE: each check upserts its row, so a re-run in the same
+-- session overwrites the previous results.
+create temp table if not exists check_results (
   check_no int primary key,
   name text not null,
   passed boolean not null,
@@ -37,7 +39,9 @@ begin
       and (select status from public.gates where id = v_gate) = 'Not started'
       and (select count(*) from public.decisions) = v_decisions,
     coalesce(v_err, 'No error raised')
-  );
+  )
+  on conflict (check_no) do update
+    set name = excluded.name, passed = excluded.passed, detail = excluded.detail;
 end $$;
 
 -- 2. Waived without a waiver rationale is rejected (missing and blank).
@@ -71,7 +75,9 @@ begin
       and (select status from public.gates where id = v_gate) = 'Not started'
       and (select count(*) from public.decisions) = v_decisions,
     format('missing: %s | blank: %s', coalesce(v_err_missing, 'No error raised'), coalesce(v_err_blank, 'No error raised'))
-  );
+  )
+  on conflict (check_no) do update
+    set name = excluded.name, passed = excluded.passed, detail = excluded.detail;
 end $$;
 
 -- 3. A status change updates the gate and inserts exactly one status_change decision.
@@ -91,15 +97,17 @@ begin
   insert into check_results values (
     3,
     'A status change inserts one Decision',
-    (select status from public.gates where id = v_gate) = 'In progress'
+    coalesce((select status from public.gates where id = v_gate) = 'In progress'
       and (select count(*) from public.decisions) = v_decisions + 1
       and v_row.kind = 'status_change'
       and v_row.gate_id = v_gate
       and v_row.from_status = 'Not started'
       and v_row.to_status = 'In progress'
-      and v_row.rationale = 'Monitoring design has started',
+      and v_row.rationale = 'Monitoring design has started', false),
     format('decisions %s -> %s; new row: %s', v_decisions, (select count(*) from public.decisions), v_row.decision)
-  );
+  )
+  on conflict (check_no) do update
+    set name = excluded.name, passed = excluded.passed, detail = excluded.detail;
 end $$;
 
 -- 4. The anon role cannot update gates.status directly.
@@ -123,7 +131,63 @@ begin
     'anon cannot update gates.status directly',
     v_err is not null and (select status from public.gates where id = v_gate) = 'Not started',
     coalesce(v_err, 'Update was allowed')
-  );
+  )
+  on conflict (check_no) do update
+    set name = excluded.name, passed = excluded.passed, detail = excluded.detail;
+end $$;
+
+-- 6. The waiver text survives on the decision after the gate leaves Waived.
+--    Runs before check 5 because check 5 resets the data.
+do $$
+declare
+  v_gate bigint;
+  v_decisions bigint;
+  v_err_blank text;
+  v_blank_unchanged boolean;
+  v_waive_id bigint;
+  v_exit_id bigint;
+  v_waiver constant text := 'Assist is not scheduled; agent training is deferred until it is.';
+begin
+  select id into v_gate from public.gates where title = 'Support agents trained on the Assist workflow';
+  select count(*) into v_decisions from public.decisions;
+
+  -- A blank waiver rationale still changes nothing.
+  begin
+    perform public.set_gate_status(v_gate, 'Waived', 'Waiving training for now', 'AI Program Lead', '   ');
+  exception when others then
+    v_err_blank := sqlerrm;
+  end;
+  v_blank_unchanged :=
+    coalesce(v_err_blank, '') like '%waiver rationale is required%'
+    and (select status from public.gates where id = v_gate) = 'Not started'
+    and (select waiver_rationale from public.gates where id = v_gate) is null
+    and (select count(*) from public.decisions) = v_decisions;
+
+  -- Waiving needs no evidence; the decision records the waiver text.
+  v_waive_id := public.set_gate_status(v_gate, 'Waived', 'Waiving training for now', 'AI Program Lead', v_waiver);
+
+  -- Leaving Waived clears the gate's copy but not the decision's.
+  v_exit_id := public.set_gate_status(v_gate, 'In progress', 'Assist is now scheduled', 'AI Program Lead');
+
+  insert into check_results values (
+    6,
+    'Waiver text survives on the decision after the gate leaves Waived',
+    coalesce(v_blank_unchanged
+      and not exists (select 1 from public.evidence where gate_id = v_gate)
+      and (select waiver_rationale from public.decisions where id = v_waive_id) = v_waiver
+      and (select to_status from public.decisions where id = v_waive_id) = 'Waived'
+      and (select waiver_rationale from public.decisions where id = v_exit_id) is null
+      and (select status from public.gates where id = v_gate) = 'In progress'
+      and (select waiver_rationale from public.gates where id = v_gate) is null
+      and (select count(*) from public.decisions) = v_decisions + 2, false),
+    format('blank rejected: %s | waive decision waiver_rationale: %s | gate now %s, gates.waiver_rationale %s',
+      coalesce(v_err_blank, 'No error raised'),
+      (select coalesce(waiver_rationale, 'NULL') from public.decisions where id = v_waive_id),
+      (select status from public.gates where id = v_gate),
+      (select coalesce(waiver_rationale, 'NULL') from public.gates where id = v_gate))
+  )
+  on conflict (check_no) do update
+    set name = excluded.name, passed = excluded.passed, detail = excluded.detail;
 end $$;
 
 -- 5. reset_demo_data() restores the seed: 16 required gates, 6 passed, 10 blocking.
@@ -156,7 +220,9 @@ begin
       and v_decisions = 4 and v_monitoring = 'Not started',
     format('%s gates, %s of %s passed, %s blocking, %s decisions, monitoring gate %s',
       v_gates, v_passed, v_required, v_blocking, v_decisions, v_monitoring)
-  );
+  )
+  on conflict (check_no) do update
+    set name = excluded.name, passed = excluded.passed, detail = excluded.detail;
 end $$;
 
 select check_no, name, case when passed then 'PASS' else 'FAIL' end as result, detail

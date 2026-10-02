@@ -12,7 +12,7 @@ function gate(title: string, status: GateStatus, evidenceCount: number, required
   return { title, required, status, evidenceCount };
 }
 
-// Mirrors the gates in reset_demo_data() (supabase/migrations/20261002000200_demo_seed.sql).
+// Mirrors the gates in reset_demo_data() (supabase/migrations/20261002092141_demo_seed.sql).
 const halcyonSeed: TestGate[] = [
   gate('Curated scenario suite passes at 0.85', 'Passed', 1),
   gate('Imperfect passes triaged, expected behavior specified', 'In progress', 1),

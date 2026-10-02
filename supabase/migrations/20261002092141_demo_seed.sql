@@ -6,8 +6,9 @@
 -- 10 blockers, Not ready.
 --
 -- Facts come only from the project brief. Undated facts have a null recorded_on.
--- Owners and decided_by are role titles, not people. Passed gates claim that a
--- rule exists and is enforced, not that it was adversarially tested.
+-- Owners and decided_by are role titles, not people. The suite gate's evidence is
+-- the recorded evaluation result. The other Passed gates rest on documents that a
+-- rule exists and is enforced, not on adversarial tests.
 
 create function public.reset_demo_data()
 returns void
@@ -138,7 +139,7 @@ begin
 
   insert into public.evidence (gate_id, type, title, summary, recorded_on)
   values
-    (v_suite, 'Document', 'Recorded live evaluation, commit 0a12bb9',
+    (v_suite, 'Evaluation result', 'Recorded live evaluation, commit 0a12bb9',
       'Live evaluation recorded 2026-09-24 against commit 0a12bb9: 11 of 11 curated scenarios passed at a '
         || '0.85 threshold. 39 agent steps, 1 failed validation after retry. Estimated model cost $0.21.',
       date '2026-09-24'),
@@ -224,8 +225,9 @@ begin
   insert into public.decisions (launch_id, kind, decision, rationale, decided_by, gate_id)
   values
     (v_launch, 'manual', 'Readiness baseline recorded',
-      'Gate statuses were recorded from existing evidence. Gates with a document showing that a rule '
-        || 'exists and is enforced are Passed. Imperfect evaluation passes are still being triaged, so that '
+      'Gate statuses were recorded from existing evidence. The scenario suite gate is Passed on the '
+        || 'recorded live evaluation result. Gates with a document showing that a rule exists and is enforced '
+        || 'are Passed. Imperfect evaluation passes are still being triaged, so that '
         || 'gate is In progress. Gates with an observed deficiency are Failed. Gates with no recorded work '
         || 'are Not started.',
       'AI Program Lead', null),
