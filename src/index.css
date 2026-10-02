@@ -1,0 +1,9 @@
+@import "tailwindcss";
+
+/* Zinc neutrals; semantic colors only: blue info, emerald success, amber warning, red danger.
+   Dark mode follows the system preference (Tailwind's default dark variant). */
+@layer base {
+  body {
+    @apply bg-white text-zinc-900 antialiased dark:bg-zinc-950 dark:text-zinc-100;
+  }
+}
