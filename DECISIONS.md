@@ -38,18 +38,18 @@ and this log disagree, this log is authoritative.
 | DR-010 | Revoke EXECUTE on `rls_auto_enable` from PUBLIC, `anon` and `authenticated` | Accepted | Implemented (`ddadd36`) |
 | DR-011 | The publishable key comes from environment configuration; the live key was never fetched | Accepted | Implemented (`e8e71ef`) |
 | DR-012 | One accent color; emerald, amber and red reserved for status | Accepted | Implemented (`1572708`) |
-| DR-013 | Trust model C: read-only canonical launch plus a disposable shared sandbox (Phase 2B D1) | Accepted | Stage 1 part in the repository and verified locally, **not applied to live**; Stage 2 not built |
-| DR-014 | Reset applies only to the sandbox, with a 5-minute cooldown (D2) | Accepted | Stage 1 part in the repository and verified locally, **not applied to live**; Stage 2 not built |
+| DR-013 | Trust model C: read-only canonical launch plus a disposable shared sandbox (Phase 2B D1) | Accepted | Stage 1 part applied to live and verified there (EVAL-065, EVAL-066); Stage 2 not built |
+| DR-014 | Reset applies only to the sandbox, with a 5-minute cooldown (D2) | Accepted | Stage 1 part applied to live and verified there (EVAL-065, EVAL-066); Stage 2 not built |
 | DR-015 | All five evidence types in the sandbox, always marked as visitor evidence (D3) | Accepted | **Not yet implemented** |
 | DR-016 | The database sets visitor identity and evidence dates (D4) | Accepted | **Not yet implemented** |
-| DR-017 | Evidence URLs are https only; visitor URLs are never clickable (D5) | Accepted | Database rule in the repository and verified locally, **not applied to live**; rendering rule is Stage 2 |
-| DR-018 | Sandbox limits: 10 visitor evidence and 20 visitor decisions per gate, 5-minute cooldown (D6) | Accepted | **Not yet implemented** (Stage 2); Stage 1's zero public-write bound is in the repository, not applied to live |
-| DR-019 | One authoritative migration deployment path (D7) | Accepted | Implemented by DR-024: the Supabase connector is the single path, and release gate R-9 is met. No migration applied under it yet |
+| DR-017 | Evidence URLs are https only; visitor URLs are never clickable (D5) | Accepted | Database rule applied to live and verified there (EVAL-065, EVAL-066); rendering rule is Stage 2 |
+| DR-018 | Sandbox limits: 10 visitor evidence and 20 visitor decisions per gate, 5-minute cooldown (D6) | Accepted | **Not yet implemented** (Stage 2); Stage 1's zero public-write bound is applied to live and verified there (EVAL-066) |
+| DR-019 | One authoritative migration deployment path (D7) | Accepted | Implemented by DR-024: the Supabase connector is the single path, and release gate R-9 is met. Stage 1 is the first migration applied under it (`20261002160901`, EVAL-065) |
 | DR-020 | No Supabase Auth at this stage; `authenticated` stays aligned with `anon` | Accepted (its R-8 consequence replaced by DR-022) | In force (nothing to build) |
-| DR-021 | Stage 1 security hardening: one migration, a read-only catalog test, a local behavior test | Accepted | In the repository, pushed (`e74aaaf`, test strengthened in `8a1ad9d`) and verified locally on Postgres 17; **not applied to live**. It deploys through the connector (DR-024) |
+| DR-021 | Stage 1 security hardening: one migration, a read-only catalog test, a local behavior test | Accepted | **Applied to live** as `20261002160901` at 16:09 (EVAL-065) and verified there: catalog 17 of 17, fingerprint equal to EVAL-045, no 0028 or 0029 lints (EVAL-066), C-11 parity PASS (EVAL-068). File renamed to that version under DR-009 (EVAL-067); the closeout commit carries the rename |
 | DR-022 | Retire release gate R-8 (the Auth settings check); no Auth is an explicit tradeoff | Accepted | In force: documentation only; enforced by catalog checks 13 and 15 |
 | DR-023 | SEC-007 at the Stage 1 release: no default-privilege change; every new function is revoked explicitly | Accepted | Stage 1 part verified locally (no function exposed through the default); the Stage 2 obligation is recorded |
-| DR-024 | The Supabase connector is the single authoritative production migration path | Accepted; amended by A1 (14:55) | Designated. No migration applied under it yet: the first Stage 1 attempt timed out without effect (EVAL-062). Amendment A1 sets the conditions for the next attempt; R-2 is pending |
+| DR-024 | The Supabase connector is the single authoritative production migration path | Accepted; amended by A1 (14:55) | In force. Stage 1 applied under it at 16:09 (EVAL-065), after the first attempt timed out without effect (EVAL-062). A1's temporary setting was used and its connector removed (EVAL-067). Step 7 parity passed (EVAL-068); R-3 met. R-2 is satisfied by the repository rename being committed; the closeout commit carries it |
 
 ---
 
@@ -274,6 +274,7 @@ and this log disagree, this log is authoritative.
   - The `...000100` and `...000200` versions exist only in commit `03a4666` and were never applied to live.
   - Two possible deploy paths (the connector and the GitHub integration) remained a risk (DR-019, release gate R-9).
     - **Update (DR-024):** the second path never existed; no GitHub integration has ever been connected (see the correction in DR-019). DR-024 makes the connector the single path, and this decision's rename becomes step 6 of its deployment procedure.
+  - **Update (Stage 1, 16:17):** applied again. Supabase recorded Stage 1 as `20261002160901`, so `20261002115318_stage1_security_hardening.sql` is renamed to `20261002160901_stage1_security_hardening.sql`, contents byte-for-byte unchanged (`R100`; EVAL-065, EVAL-067). The closeout commit carries the rename and the release records. Records that name `20261002115318` describe the authored file before deployment and stay as written.
 - **Evidence:**
   - EVAL-022: live and repository migrations are byte-identical.
   - EVAL-008: the migration list on live.
@@ -362,6 +363,7 @@ restores the whole seed. **The project owner approved D1 to D7 on 2026-10-02** (
 - **Stage 1 is not applied to the live project.** The single deploy path couldn't be established, because the GitHub integration's deploy setting is unverified (DR-019, R-9). Live was read again at 12:00. It still has the Phase 1 public write surface, and the new catalog test fails there on exactly the four checks the migration fixes (EVAL-048).
 - **Stage 2:** no sandbox, provenance column, sandbox function, cap or cooldown exists.
 - **Update (deployment-path decision, 14:15):** the "unverified GitHub integration" above rested on a misreading; no GitHub integration has ever been connected (see the correction in DR-019). DR-024 designates the Supabase connector as the single path, so R-9 is met. Stage 1 is still **not applied to live**: that's a separate, authorized deployment run.
+- **Update (Stage 1 deployment, 16:09 to 16:21):** Stage 1 is **applied to live** as `20261002160901` (EVAL-065) and verified there read-only: catalog 17 of 17, fingerprint equal to EVAL-045, no 0028 or 0029 lints (EVAL-066). C-11 migration parity passes (EVAL-068). The repository file is renamed to that version (DR-009, EVAL-067); the closeout commit carries the rename. The statements above and in DR-013 to DR-018 that Stage 1 is "not applied to live" describe the state before this update.
 
 **Implementation order** (details in [the reconciliation record](docs/security/2026-10-02-audit-2b-reconcile.md#9-remediation-sequence)):
 - **Stage 1, security hardening:** the read-only catalog test, then migrations M-1 (no public writes), M-2 (https check) and M-3 (default privileges), then verification. Done in the repository and locally. The production deployment is pending: R-9 is met (DR-024), and the deployment is a separate, authorized run.
@@ -638,6 +640,7 @@ restores the whole seed. **The project owner approved D1 to D7 on 2026-10-02** (
     - The local replay passed again: catalog 17 of 17, behavior 24 of 24, fingerprint 12 of 12, integrity 6 of 6 (EVAL-056).
     - Still **not applied to live** (DR-019). SEC-007's disposition is DR-023. Release gate R-8 was retired by DR-022.
   - **Update (deployment-path decision, 14:15):** the deploy path is now designated (DR-024), so the reason given above no longer applies. Stage 1 will be the first migration applied through the connector under DR-024, in a separately authorized run. After application, the file is renamed to the version Supabase records, with its SQL unchanged (DR-009, R-2). It's still **not applied to live**.
+  - **Update (Stage 1 deployment, 16:09 to 16:21):** **applied to live** through the connector as `20261002160901` (EVAL-065), and verified there read-only: catalog 17 of 17, fingerprint 12 of 12 equal to EVAL-045, no 0028 or 0029 lints, `ACTIVE_HEALTHY` (EVAL-066). C-11 passes: the stored statement's md5 equals the file's, `f66a638dfb93554ad4f1a2bac0826304` (EVAL-068). The repository file is renamed to that version (EVAL-067); the closeout commit carries the rename.
 - **Context:** Phase 2B specified Stage 1 as steps S1 to S6, migrations M-1 to M-3, the catalog tests C-1 to C-14 and the behavior tests B-1 to B-3.
 - **Options considered:**
   - one migration or three
@@ -764,6 +767,7 @@ restores the whole seed. **The project owner approved D1 to D7 on 2026-10-02** (
 - **Date:** decided by the project owner on 2026-10-02 (instruction at 14:15), after the read-only deployment-path audit (13:54 to 14:04, EVAL-060).
 - **Status:** Accepted. Implements DR-019 (D7).
 - **Implementation status:** in force for the next production migration. No migration has been applied under it yet. Stage 1 (`20261002115318_stage1_security_hardening.sql`) is the first, and waits on a separately authorized deployment run (release gate R-2).
+  - **Update (16:09 to 16:21):** Stage 1 is the first migration applied under this decision: one `apply_migration` call, recorded as `20261002160901` (EVAL-065). Steps 5 to 8 are recorded in EVAL-065 to EVAL-068; step 6 is the repository rename required by DR-009. Step 7 passed at 16:28: the stored statement's md5 equals the file's, and the version is recorded exactly once. Step 9 is the closeout commit and push action, which carries the rename and these records.
 - **Context:**
   - DR-019 (D7) requires exactly one authoritative path for migrations to reach production. Invariant I20 requires the repository files to match `supabase_migrations`.
   - **GitHub has never been connected to the Supabase project.**
@@ -855,3 +859,7 @@ restores the whole seed. **The project owner approved D1 to D7 on 2026-10-02** (
     - independent read-only verification afterwards.
   - **On failure:** if the attempt fails or behaves unexpectedly, the deployment stops, the setting is removed, and nothing is retried in that run.
   - **Scope:** this is a temporary operational accommodation for the current client environment. It isn't a change to the project's database architecture or to DR-024's procedure. Any future migration that triggers the same confirmation needs its own explicit authorization under this rule, or a client that shows the form.
+  - **Outcome (15:49 to 16:21, EVAL-064 to EVAL-067):**
+    - The directory connector's URL couldn't be edited, so the owner set the option on a separate connector, "Supabase Deployment". It's the same Supabase MCP server and `apply_migration` operation, and it was used only for this window. The session could never read the option's value; it rests on the owner's configuration.
+    - With the owner's authorization, one `apply_migration` call through that connector succeeded at 16:09, with no confirmation hold and no retry (EVAL-065). The original connector stayed enabled, but wasn't called.
+    - The owner then removed the Deployment connector, and its tools left the session (EVAL-067). That completes the removal rule above.

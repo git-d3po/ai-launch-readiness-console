@@ -23,13 +23,20 @@ Audit 1's original rating is kept beside the revised one.
 
 | ID | Finding | Audit 1 ID | Original | Revised | Confirmed | Remediation specified | In the repository | Applied to live |
 |---|---|---|---|---|---|---|---|---|
-| SEC-001 | Anonymous callers can forge readiness and impersonate approvers | C1 | Critical | High | Yes | Yes | Stage 1 part: yes | **No** |
-| SEC-002 | Anonymous callers can truncate and re-seed all launch data | C2 | Critical | Medium | Partially (it restores the seed) | Yes | Stage 1 part: yes | **No** |
-| SEC-003 | Unbounded public writes can push the database into read-only mode | H1, N1 | High | High | Yes | Yes | Stage 1 part (zero public writes): yes | **No** |
-| SEC-004 | Visitor text is shown as authoritative on the canonical overview | H3, H4 | High, High | Medium; H4 Low | Yes | Yes | Stage 1 part: yes | **No** |
-| SEC-005 | `evidence.source` accepts `javascript:` and other unsafe URLs | H2 | High | Low (latent) | Yes | Yes | Database rule: yes | **No** |
-| SEC-006 | Default privileges give API roles privileges on future tables | H5 | High | Low | Yes (facts) | Yes | Yes | **No** |
+| SEC-001 | Anonymous callers can forge readiness and impersonate approvers | C1 | Critical | High | Yes | Yes | Stage 1 part: yes | Stage 1 part: **yes** (EVAL-065, EVAL-066) |
+| SEC-002 | Anonymous callers can truncate and re-seed all launch data | C2 | Critical | Medium | Partially (it restores the seed) | Yes | Stage 1 part: yes | Stage 1 part: **yes** (EVAL-065, EVAL-066) |
+| SEC-003 | Unbounded public writes can push the database into read-only mode | H1, N1 | High | High | Yes | Yes | Stage 1 part (zero public writes): yes | Stage 1 part: **yes** (EVAL-065, EVAL-066) |
+| SEC-004 | Visitor text is shown as authoritative on the canonical overview | H3, H4 | High, High | Medium; H4 Low | Yes | Yes | Stage 1 part: yes | Stage 1 part: **yes** (EVAL-065, EVAL-066) |
+| SEC-005 | `evidence.source` accepts `javascript:` and other unsafe URLs | H2 | High | Low (latent) | Yes | Yes | Database rule: yes | Database rule: **yes** (EVAL-065, EVAL-066) |
+| SEC-006 | Default privileges give API roles privileges on future tables | H5 | High | Low | Yes (facts) | Yes | Yes | **Yes** (EVAL-065, EVAL-066) |
 | SEC-007 | Functions that `postgres` creates are executable by PUBLIC by default | None (new in Stage 1) | n/a | Low (latent) | Yes | Yes: no default change; explicit revoke per function (DR-023) | Nothing to change in Stage 1; guarded by catalog check 9 | n/a (nothing to apply) |
+
+**Status after the Stage 1 deployment (2026-10-02, about 16:29):**
+- **Applied to live:** migration `20261002160901_stage1_security_hardening`, the same file authored as `20261002115318_...`, was applied once through the Supabase connector (DR-024) at 16:09 (EVAL-065). The repository file is renamed to that version (DR-009, EVAL-067); the closeout commit carries the rename.
+- **Verified on live, read-only (EVAL-066):** catalog test 17 of 17; all 12 fingerprint parts equal EVAL-045, seed intact; the security advisor shows no lints, so 0028 and 0029 are cleared.
+- **Migration parity, C-11 (EVAL-068):** the stored statement's md5 equals the repository file's, `f66a638dfb93554ad4f1a2bac0826304`.
+- **So the Stage 1 parts of SEC-001 to SEC-006 are applied to live.** The Stage 2 controls are still not built.
+- The block below is the status as of 14:25, kept as written.
 
 **Status after the deployment-path decision (2026-10-02, about 14:25):**
 - **In the repository:** migration `supabase/migrations/20261002115318_stage1_security_hardening.sql` implements the Stage 1 part of SEC-001 to SEC-006. It was verified on a local Postgres 17 build (EVAL-039 to EVAL-047), and again after the behavior test was strengthened (EVAL-056).
@@ -95,6 +102,7 @@ Audit 1's original rating is kept beside the revised one.
   - Remediation specified: **yes**
   - In the repository, verified locally: **yes, for Stage 1.** M-1 removes every public write path to the canonical launch (catalog checks 3 and 9; behavior checks 3 to 18; HTTP 401/403 with 42501; EVAL-041, EVAL-043, EVAL-046). The Stage 2 controls (provenance, the sandbox functions, labels) aren't built.
   - Applied to live: **no.** Live still grants the write paths (EVAL-048).
+    - **Update (16:21): yes, for Stage 1.** Applied at 16:09 (EVAL-065); on live, evidence INSERT, `"Public append"` and `set_gate_status` EXECUTE are gone (catalog checks 3 and 9; policies part) (EVAL-066).
 
 ## SEC-002: Anonymous callers can truncate and re-seed all launch data
 
@@ -140,6 +148,7 @@ Audit 1's original rating is kept beside the revised one.
   - Remediation specified: **yes**
   - In the repository, verified locally: **yes, for Stage 1.** `anon` and `authenticated` can no longer execute `reset_demo_data()`, and the owner keeps it (catalog check 9; behavior checks 9 and 17; HTTP 401/403). The sandbox reset is Stage 2 and isn't built.
   - Applied to live: **no** (EVAL-048, EVAL-049).
+    - **Update (16:21): yes, for Stage 1.** Applied at 16:09 (EVAL-065); on live, `anon` and `authenticated` can't execute `reset_demo_data()` (catalog check 9); lints 0028 and 0029 are cleared (EVAL-066).
 
 ## SEC-003: Unbounded public writes can push the database into read-only mode
 
@@ -189,6 +198,7 @@ Audit 1's original rating is kept beside the revised one.
   - Remediation specified: **yes**
   - In the repository, verified locally: **yes, for Stage 1.** The public write bound is zero, because no table write or function remains for the API roles (catalog checks 3 to 9; behavior checks 3 to 18). The per-gate caps and the cooldown are Stage 2 and aren't built.
   - Applied to live: **no.**
+    - **Update (16:21): yes, for Stage 1.** Applied at 16:09 (EVAL-065); on live, no table write, sequence or function privilege remains for the API roles (catalog checks 3 to 9), so the public write bound is zero (EVAL-066).
 
 ## SEC-004: Visitor text is shown as authoritative on the canonical overview
 
@@ -238,6 +248,7 @@ Audit 1's original rating is kept beside the revised one.
   - Remediation specified: **yes**
   - In the repository, verified locally: **yes, for Stage 1.** No visitor text can reach the canonical launch, because `set_gate_status` and evidence INSERT are closed to the API roles. The Stage 2 text checks, fixed decider and server-set dates aren't built.
   - Applied to live: **no.**
+    - **Update (16:21): yes, for Stage 1.** Applied at 16:09 (EVAL-065); on live, `set_gate_status` and evidence INSERT are closed to the API roles (catalog checks 3 and 9) (EVAL-066).
 
 ## SEC-005: `evidence.source` accepts `javascript:` and other unsafe URLs
 
@@ -274,6 +285,7 @@ Audit 1's original rating is kept beside the revised one.
   - Remediation specified: **yes**
   - In the repository, verified locally: **yes, for the database rule.** The constraint `evidence_source_https` passes 12 of 12 accept cases and 33 of 33 reject cases, including every Phase 2B case (EVAL-043). The implemented pattern refines the Phase 2B text so that it doesn't depend on the collation provider (DR-021). The rendering rule (A6) is Stage 2; nothing renders `source` today.
   - Applied to live: **no.**
+    - **Update (16:21): yes, for Stage 1.** Applied at 16:09 (EVAL-065); on live, the `evidence_source_https` constraint is present (the fingerprint's constraints part equals EVAL-045; catalog check 15) (EVAL-066).
 
 ## SEC-006: Default privileges give API roles privileges on future tables
 
@@ -308,6 +320,7 @@ Audit 1's original rating is kept beside the revised one.
   - Remediation specified: **yes**
   - In the repository, verified locally: **yes.** Migration M-3 was verified on Postgres 17.10: a new table gives `anon` and `authenticated` none of 8 privileges, MAINTAIN included, and `service_role` is unchanged (EVAL-040; catalog check 14; behavior check 21).
   - Applied to live: **no.** Live's per-schema default still grants TRUNCATE, REFERENCES, TRIGGER and MAINTAIN (EVAL-036, EVAL-048).
+    - **Update (16:21): yes, for Stage 1.** Applied at 16:09 (EVAL-065); on live, no default grant to the API roles or PUBLIC for future tables (catalog check 14) (EVAL-066).
 
 ## SEC-007: Functions that `postgres` creates are executable by PUBLIC by default
 

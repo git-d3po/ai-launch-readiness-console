@@ -7,6 +7,7 @@
 > - **Implementation:**
 >   - **Stage 1** (no public writes, https-only evidence sources, closed default privileges) is in the repository, verified locally and pushed to `claude/phase1-schema` (DR-021). It isn't merged to `main`.
 >   - Stage 1 is **not yet applied to the live project**, which still had the Phase 1 public write paths when it was last read (2026-10-02, 13:39 UTC). The deployment path is designated (DR-024: the Supabase connector); applying Stage 1 is a separate, authorized run.
+>   - **Update (2026-10-02, about 16:21 UTC):** Stage 1 is now **applied to the live project** (migration `20261002160901`) and verified there read-only: the security catalog test passes 17 of 17, and the fingerprint equals the Stage 1 build (`docs/evaluation/EVALUATION_LOG.md`, EVAL-065 and EVAL-066).
 >   - The Stage 2 sandbox isn't built.
 > - **Authentication:** the project deliberately doesn't use Supabase Auth at this stage (DR-020). That's an explicit tradeoff, not a security advantage, and the old Auth-settings release gate is retired (DR-022).
 > - **Build approach:** the project is built directly in this repository against its own Supabase project, not through Lovable (DR-004).

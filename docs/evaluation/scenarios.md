@@ -12,6 +12,8 @@ steps, the expected result, what is true **today**, and the specified tests that
 
 **Deployment-path decision (about 14:25):** the path is now designated (DR-024: the Supabase connector), but Stage 1 still isn't applied; that's a separate, authorized run. Live was re-read at 13:39 and is unchanged (EVAL-059), so every "not applied to live" label below still holds.
 
+**Stage 1 deployment (about 16:21):** Stage 1 is now **applied to live** (`20261002160901`, EVAL-065) and verified there with the read-only catalog test (17 of 17) and fingerprint (equal to EVAL-045), with no 0028 or 0029 lints (EVAL-066). Every "not applied to live" label below is superseded for the Stage 1 parts, which are now applied to live and verified read-only. The behavior steps themselves still run only on local databases (I19); on live, the catalog privilege checks answer them without a write.
+
 **Rules for every behavior scenario** (Phase 2B invariant I19):
 - Run only against a local or ephemeral database built from this repository, never against production.
 - Run each step as `anon` **and** as `authenticated`, inside a transaction that rolls back.

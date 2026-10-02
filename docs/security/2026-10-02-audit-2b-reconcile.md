@@ -11,6 +11,7 @@
   - **Update, Stage 1 (about 12:05):** Stage 1 is implemented in the repository and verified locally on Postgres 17, but **not applied to live** (§15, DR-021). Everything above §15 is the Phase 2B record as written, apart from the status columns in §9 and §11 and the items marked "Update" in §12 and §14.
   - **Update, Stage 1 release checkpoint (about 13:10):** Stage 1 is pushed to `origin/claude/phase1-schema` and still **not applied to live**. The single deploy path couldn't be established with the available tools: decision-tree Case C (§16). Release gate R-8 is retired (DR-022), and SEC-007 has a recorded disposition (DR-023).
   - **Update, deployment-path decision (14:15 to 14:25):** DR-024 designates the Supabase connector as the single production migration path, so release gate R-9 is met (§11, §17). The earlier reading that GitHub had been linked to the project was wrong; it's corrected in §16 and §17. §8 gains an "Update" note on how I20 applies. Stage 1 is still **not applied to live**.
+  - **Update, Stage 1 deployment (16:08 to 16:29):** Stage 1 is **applied to live** as `20261002160901` and verified there read-only: catalog 17 of 17, fingerprint equal to EVAL-045, no 0028 or 0029 lints, and C-11 migration parity PASS. R-3 and R-6 are met. R-2's application is met, and R-2 is satisfied by the DR-009 rename to that version being committed; the closeout commit carries it (§11, §18).
 - **Related:**
   - [`findings.md`](findings.md): one record per finding
   - [`../evaluation/EVALUATION_LOG.md`](../evaluation/EVALUATION_LOG.md): the evidence, cited as EVAL-NNN
@@ -293,10 +294,10 @@ I20 is checked after the rename: the repository and production must then agree o
 |---|---|---|---|---|
 | S0 | Record decisions D1 to D7 | None | None | **Done** in the commit that added this record (DR-013 to DR-019) |
 | S1 | Add the read-only catalog test `supabase/tests/security_catalog.sql`. It should fail first. | None | Guards I2 to I6, I9 | **Done:** committed; fails first on the pre-Stage-1 build and on live (EVAL-041, EVAL-048) |
-| S2 | Migration M-1: revoke the public write paths | D1 | I3, I4, I7 | **In the repository, verified locally;** not applied to live |
-| S3 | Migration M-2: https check on `evidence.source` | None | I10 | **In the repository, verified locally** (refined pattern, §15); not applied to live |
-| S4 | Migration M-3: default privileges | None | I9 | **In the repository, verified locally on Postgres 17;** not applied to live |
-| S5 | **Verify on production:**<br>• the catalog test passes<br>• the advisor shows no 0028 or 0029 lints<br>• migration hashes match<br>• the fingerprints match<br>• the integrity suite passes 6 of 6 **locally** | S1 to S4 | All Stage 1 invariants | **Pending** the authorized deployment run; R-9 is met (DR-024). Not done on production. The local equivalents pass (§15, EVAL-056, EVAL-061) |
+| S2 | Migration M-1: revoke the public write paths | D1 | I3, I4, I7 | **Applied to live** (`20261002160901`, EVAL-065) and verified there (EVAL-066) |
+| S3 | Migration M-2: https check on `evidence.source` | None | I10 | **Applied to live** (refined pattern, §15; EVAL-065), verified by the fingerprint's constraints part (EVAL-066) |
+| S4 | Migration M-3: default privileges | None | I9 | **Applied to live** (EVAL-065); catalog check 14 passes there (EVAL-066) |
+| S5 | **Verify on production:**<br>• the catalog test passes<br>• the advisor shows no 0028 or 0029 lints<br>• migration hashes match<br>• the fingerprints match<br>• the integrity suite passes 6 of 6 **locally** | S1 to S4 | All Stage 1 invariants | **Done:** catalog 17 of 17, no 0028 or 0029 lints, fingerprint equal to EVAL-045 (EVAL-066); migration hashes match, C-11 PASS (EVAL-068). The integrity suite passed locally (EVAL-056, EVAL-061, EVAL-062) |
 | S6 | The owner checks the Auth dashboard settings and records them | None | Closes M1 | **Retired** with R-8 (DR-022), not passed: the settings stay unread |
 | Stage 2 | **At the start of the gate-sheet phase:**<br>• M-4: provenance, sandbox columns, composite keys, text checks<br>• M-5: `set_gate_status` gains an origin; the seed builds the sandbox<br>• M-6: the three sandbox functions<br>• application items A3 to A9 | D1 to D6 | I11 to I16 | Not started |
 
@@ -307,6 +308,8 @@ Stage 1 (S1 to S6) is the next implementation phase.
 **Update, release checkpoint:** S1 to S4 are pushed. S5 is still blocked by R-9 (§16). S6 was retired with R-8 (DR-022).
 
 **Update, deployment-path decision:** R-9 is met (DR-024). S5 now waits only on the separately authorized deployment run (§17).
+
+**Update, Stage 1 deployment:** S2 to S4 are applied to live (EVAL-065). S5 is done, including the migration-hash check, C-11 (EVAL-068, §18).
 
 ### Migration specifications
 
@@ -491,11 +494,11 @@ inside a rolled-back transaction.
 | Gate | Condition | Status |
 |---|---|---|
 | R-1 | D1 to D7 recorded in `DECISIONS.md`, and the brief's "Reset demo data" line updated | **Decisions recorded** in the commit that added this record. The brief line itself is kept verbatim as history, and a notice at the top of `PROJECT_BRIEF.md` supersedes it. |
-| R-2 | M-1, M-2 and M-3 applied through the single chosen path, with repository files renamed to the recorded versions | **Not yet passed.** The migration is written, verified locally and pushed, and the path is designated (DR-024). It waits on the authorized deployment run; the file is renamed to the recorded version after application (§17) |
-| R-3 | C-1 to C-13 pass against production | **Not yet passed.** The committed catalog test fails on live in 4 of 17 checks until the migration is applied (EVAL-048); unchanged at 12:39 (EVAL-051) and 13:39 (EVAL-059) |
+| R-2 | M-1, M-2 and M-3 applied through the single chosen path, with repository files renamed to the recorded versions | **Application met; the DR-009 rename completes it.** Applied once through the Supabase connector (DR-024; A1's temporary Deployment connector) at 16:09, recorded as `20261002160901` (EVAL-065). The file `20261002115318_stage1_security_hardening.sql` is renamed to `20261002160901_stage1_security_hardening.sql`, contents unchanged (`R100`; DR-009, EVAL-067). R-2 is satisfied by the repository rename being committed; the closeout commit carries it |
+| R-3 | C-1 to C-13 pass against production | **Passed** (16:29). On live after the migration: C-1 to C-10 pass as catalog checks 1 to 17, 17 of 17; C-12 holds, all 12 fingerprint parts equal EVAL-045; C-13 holds, no 0028 or 0029 lints (EVAL-066); C-11 passes, each stored statement's md5 equals its file, `20261002160901` `f66a638dfb93554ad4f1a2bac0826304` (EVAL-068). Before the migration the catalog test failed 4 of 17 (EVAL-048, EVAL-051, EVAL-059, EVAL-062) |
 | R-4 | B-1 to B-3 pass on an ephemeral database built from the repository, and C-12 parity holds | **Met locally:** 24 of 24 (EVAL-043), and again with 41 reject cases (EVAL-056); pre-Stage-1 parity with live holds (EVAL-039, EVAL-051) |
 | R-5 | The integrity suite passes 6 of 6 locally; Vitest, typecheck and build are green | **Met** (EVAL-044, EVAL-047; again in EVAL-056 and EVAL-058) |
-| R-6 | The security advisor shows no `anon` or `authenticated` SECURITY DEFINER lints | **Not yet passed.** On live, 0028 and 0029 still list the two functions (EVAL-049); unchanged at 12:39 (EVAL-051) and 13:40 (EVAL-059) |
+| R-6 | The security advisor shows no `anon` or `authenticated` SECURITY DEFINER lints | **Met** (16:11, EVAL-066): the security advisor returns no lints. Before the migration 0028 and 0029 listed the two functions (EVAL-049, EVAL-051, EVAL-059, EVAL-062) |
 | R-7 | The history and bundle secret scans are clean | **Met with detect-secrets:** no real secrets in the full history (EVAL-057) or the production bundle (EVAL-058). gitleaks couldn't be installed (network policy), and GitHub secret scanning isn't available on this repository |
 | R-8 | The Auth dashboard settings are checked and recorded; signups disabled or confirmed harmless | **Retired, not passed** (DR-022). Auth is intentionally not used; the release instead requires catalog checks 13 and 15 on every deployment (`anon` and `authenticated` hold identical privileges and policies). The settings stay unread: a documented tradeoff, not a security advantage |
 | R-9 | The GitHub integration deploy settings are confirmed before anything merges to `main` | **Met** by the deployment-path decision (DR-024, 14:15). The Supabase connector is the designated single path and has applied every production migration (EVAL-022, EVAL-059). No GitHub integration has ever been connected (owner-verified at 13:54, EVAL-060), and no CI workflow exists, so nothing deploys from `main`. The earlier "Open, blocking" status (EVAL-052, EVAL-053) rested on a misreading, corrected in DR-019 and EVAL-052 |
@@ -765,3 +768,38 @@ If any check fails, stop and reconcile. Don't retry blindly, repair the history,
 **Update (14:55, EVAL-062, EVAL-063):**
 - The first deployment attempt under this plan timed out at step 3 and applied nothing. The cause: the connector held the `drop policy` statement for a confirmation that this cloud client doesn't display.
 - DR-024 amendment A1 governs the next attempt. The owner sets `skip_elicitations=apply_migration` on the Supabase connection for that window only, and removes it afterwards. The steps and hard-stop rules above are unchanged.
+
+## 18. Stage 1 production deployment and validation (2026-10-02, 15:13 to 16:29)
+
+**Evidence:** EVAL-064 to EVAL-068. **Production change:** exactly one, the Stage 1 migration (EVAL-065). Everything else in this section was read-only on live.
+
+**What happened:**
+- **The cause of the first attempt's timeout was confirmed (EVAL-064).** Claude's own tool approval wasn't the blocker. The 60 s hold came from the Supabase server's destructive-SQL confirmation, which this client doesn't display. It appeared only for SQL containing a DROP statement.
+- **Amendment A1 was carried out through a separate connector.** The directory connector's URL is copy-only, so the owner set up a second connector, "Supabase Deployment", for the deployment window. It's the same Supabase MCP server and `apply_migration` operation that DR-024 designates. Its `skip_elicitations` value was never readable from the session; it rests on the owner's configuration. The original connector stayed enabled but wasn't called during the deployment or the validation.
+- **The deployment (EVAL-065):** one `apply_migration` call at 16:08:51, with the file's exact bytes, returned success at 16:09:01. Supabase recorded `20261002160901`, and no confirmation hold occurred.
+- **The validation (EVAL-066):** the committed, unmodified catalog test and fingerprint ran once each, read-only.
+- **Migration parity, C-11 (EVAL-068):** EVAL-022's query, run once at 16:28 through the original connector, read-only. The stored statement for `20261002160901` has md5 `f66a638dfb93554ad4f1a2bac0826304`, 2205 characters, equal to the repository file. The three earlier versions are unchanged.
+- **Repository reconciliation (EVAL-067):** under DR-009 the file is renamed to `20261002160901_stage1_security_hardening.sql`, contents byte-for-byte unchanged. The closeout commit carries the rename and these records. References to `20261002115318` earlier in this record describe the authored file before deployment and are left as written.
+- **A1 cleanup (EVAL-067):** the owner removed the Deployment connector after the deployment, and its tools left the session.
+
+### Stage 1 gates now
+
+| Gate | Status | Evidence |
+|---|---|---|
+| G1 Implementation | **Done** | DR-021 |
+| G2 Local verification | **Done** | EVAL-056, EVAL-061, EVAL-062 |
+| G3 Pushed | **Done** through `f1e5279`. The rename and this record go up with the commit that adds them | EVAL-053 |
+| G4 Deployment path (R-9) | **Met** | DR-024, EVAL-060 |
+| G5 Production application (R-2) | **Application met:** applied once, recorded as `20261002160901`. R-2 is satisfied by the repository rename being committed; the closeout commit carries it | EVAL-065, EVAL-067 |
+| G6 Production verification (R-3, R-6, C-11, data) | **Met:** catalog 17 of 17; fingerprint equal to EVAL-045, seed intact; no 0028 or 0029 lints; C-11 PASS; `ACTIVE_HEALTHY` | EVAL-066, EVAL-068 |
+
+**Closeout:** DR-024 step 9 is the closeout commit and push, which carries the DR-009 rename and these records. With the rename committed, R-2 and I20 are satisfied; production already matches the renamed file (EVAL-068).
+
+### The 14 audit questions on live
+
+§16's "Live today" column described live before the migration. On live after Stage 1, questions 1 to 8 and 10 now have the Stage 1 build's answer. That rests on catalog checks 2 to 9, 13, 14 and 16, and on the fingerprint's functions, policies and grants parts (EVAL-066); no write was attempted on production (I19). Question 9's constraint is on live (fingerprint constraints part), and its bypass analysis is the local one (EVAL-054, EVAL-056). Question 11 holds: version, order and contents agree, and C-11 passes for all four versions (EVAL-068).
+
+### Still open
+
+- **The app in a browser against live**, from §16's verification table. It's not run.
+- **Advisor INFO findings 0001 and 0005:** performance only, unrelated to Stage 1, reported as they are (EVAL-066).

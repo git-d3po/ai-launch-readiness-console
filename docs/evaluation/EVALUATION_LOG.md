@@ -100,6 +100,11 @@ migrations (`supabase/tests/local_roles.sql` first, for the `anon` and `authenti
 | EVAL-061 | 14:23 | DR-024 commit: fresh replay, tests, hygiene, Markdown and secret checks | local, build, static | 17/17, 24/24, 12/12, 6/6; 11/11; checks clean | Tests and replay reproducible from repo; scans recorded only |
 | EVAL-062 | 14:37 | First Stage 1 deployment attempt: gates, preflight, one `apply_migration` call | local, build, static, live read-only, live write attempt | All gates green; the apply timed out at 60 s; nothing applied (hard stop) | Gates reproducible from repo; the attempt recorded only |
 | EVAL-063 | 14:53 | Connector confirmation diagnostic | static, docs, live read-only | No confirmation shown in this client; 60 s tool timeout; `skip_elicitations` lives on the connection, unreadable here | Recorded only |
+| EVAL-064 | 15:13 to 16:04 | Connector diagnostics; Supabase Deployment connector preflight | static, live read-only | The 60 s hold was server-side, not Claude's approval; a second connector set up; production still 3 migrations | Recorded only |
+| EVAL-065 | 16:08 | Stage 1 production deployment: one `apply_migration` call | live read-only, live write | Succeeded once; recorded as `20261002160901`; 4 migrations; `ACTIVE_HEALTHY` | Recorded only |
+| EVAL-066 | 16:11 to 16:14 | Stage 1 post-deployment validation on live | live read-only | Catalog 17 of 17; fingerprint 12 of 12 equal to EVAL-045; no security advisor lints | Catalog and fingerprint reproducible from repo; advisors recorded only |
+| EVAL-067 | 16:17 to 16:21 | DR-009 rename; amendment A1 cleanup | static | Pure rename (`R100`), contents unchanged; Deployment connector removed by the owner | Recorded only |
+| EVAL-068 | 16:28 | Stage 1: C-11 migration parity on live | live read-only, static | PASS: all 4 stored statements equal their files; `20261002160901` md5 `f66a638dfb93554ad4f1a2bac0826304`, 2205 characters | Recorded only (EVAL-022's query) |
 
 ---
 
@@ -1282,11 +1287,104 @@ Starting commit: `36718bbaa4b31febe888eb68558ba848803dd612`, clean, in sync. **N
 - **Consequence:** DR-024 amendment A1.
 - **Reproducibility:** recorded only.
 
+
+## Stage 1 production deployment and validation (2026-10-02, 15:13 to 16:29)
+
+Starting commit: `f1e52790f80b960109a7f9b465b90e2228026cef`, clean, in sync with `origin`.
+**One production change resulted: the Stage 1 migration, applied once (EVAL-065).** Every other live call in this section was read-only.
+
+### EVAL-064: Connector diagnostics and Supabase Deployment connector preflight
+- **Date:** 15:13 to 16:04.
+- **Target:** static, and live read-only. No Supabase tool was called before 16:04.
+- **Run and result:**
+  - **Connector configuration (15:13 to 15:30):**
+    - The session's Supabase tools come from the owner's claude.ai "Supabase" directory connector. Nothing in the container configures it: no `.mcp.json`, no `.claude/` directory, no MCP entry in the user or managed settings, and the session process has no MCP config flag.
+    - The local Claude Code CLI (2.1.287) can only add separate MCP servers; it can't edit a claude.ai connector. The session's network policy denies `mcp.supabase.com` (CONNECT 403).
+    - The connector's URL, and so its `skip_elicitations` value, isn't readable from the session.
+  - **Cause of the 60 s hold (15:37 to 15:46):** the owner had switched Claude's permission for `apply_migration` from "Needs approval" to "Always allow". The session record was analysed read-only:
+    - `apply_migration`: the 3 earlier migrations (no DROP) succeeded in 11 to 16 s; the Stage 1 call with `drop policy` (EVAL-062) timed out at 60 s.
+    - `execute_sql`: all 6 calls containing a DROP statement timed out at 60 s; none of the 42 without one did (39 succeeded, 3 returned ordinary SQL errors).
+    - The error `MCP server "Supabase" tool "apply_migration" timed out after 60s` is raised by Claude Code's timer around the request to the MCP server, which starts only after Claude's own approval. At 14:48 that approval cleared within about 5 s.
+    - **Conclusion:** the hold was the Supabase server's destructive-SQL confirmation, not Claude's tool approval, so the permission change alone didn't remove it.
+  - **A second connector (15:49 to 15:53):** the directory connector's URL is copy-only in the owner's settings, so the owner set up a separate connector, "Supabase Deployment", for amendment A1. At 15:53 it was listed as `connect_incomplete`, with no tools in the session.
+  - **Deployment connector preflight (16:04, read-only, through that connector only):**
+    - Connected and enabled, with its own server ID. Its 27 tools are the same as the directory connector's, and `apply_migration` and `execute_sql` still say "Destructive statements may require the user to confirm before they run." The original "Supabase" connector stayed connected and enabled.
+    - `get_project`: `ai-launch-readiness-console`, `ACTIVE_HEALTHY`, Postgres `17.11.0.002`. `get_organization`: the project's organization ("git-d3po", free plan).
+    - `list_migrations`: exactly the 3 earlier versions.
+- **Limitations:** the `skip_elicitations` value on either connector was never observable from the session. Its presence on the Deployment connector rests on the owner's configuration.
+- **Reproducibility:** recorded only.
+
+### EVAL-065: Stage 1 production deployment
+- **Date:** 16:08 to 16:09. Authorized by the owner at 16:08 for exactly one `apply_migration` call through the Supabase Deployment connector.
+- **Target:** live read-only, and one live write.
+- **Run and result:**
+  - **Repository:** HEAD `f1e5279`, clean, in sync. `supabase/migrations/20261002115318_stage1_security_hardening.sql` is 2205 bytes, md5 `f66a638dfb93554ad4f1a2bac0826304`, with no tabs, CRs or non-ASCII bytes, and one backslash.
+  - **Preflight (16:08:33 to 16:08:39):** `get_project` `ACTIVE_HEALTHY`; `list_migrations` exactly the 3 earlier versions; the name `stage1_security_hardening` not among them.
+  - **The apply:** one `apply_migration` call, sent at 16:08:51 through the Supabase Deployment connector, with `project_id` set to the production project, `name` `stage1_security_hardening` and `query` the file's exact text. It returned `{"success":true}` at 16:09:01. No confirmation form appeared and nothing was retried.
+  - **Read-back (16:09:04 to 16:09:06):** `list_migrations` shows 4 versions: the 3 earlier ones and `20261002160901` `stage1_security_hardening`. `get_project` `ACTIVE_HEALTHY`.
+  - No `execute_sql` call was made, and the original "Supabase" connector wasn't called.
+- **Limitations:** the stored statement's md5 (DR-024 step 7, test C-11) wasn't read in this entry; it was read later (EVAL-068).
+- **Reproducibility:** recorded only.
+
+### EVAL-066: Stage 1 post-deployment validation on live
+- **Date:** 16:11 to 16:14.
+- **Target:** live read-only, through the Supabase Deployment connector only.
+- **Run and result:**
+  - **State (16:11:30):** `get_project` `ACTIVE_HEALTHY`, Postgres `17.11.0.002`; `list_migrations` exactly 4 versions, the 4th `20261002160901` `stage1_security_hardening`.
+  - **Advisors (16:11:33):**
+    - Security: **no lints.** Lints 0028 and 0029, which listed `reset_demo_data` and `set_gate_status` before the migration (EVAL-049, EVAL-062), are gone.
+    - Performance, INFO only: 0001 (3 unindexed foreign keys: `decisions_gate_id_fkey`, `decisions_risk_id_fkey`, `risks_gate_id_fkey`) and 0005 (2 unused indexes: `decisions_launch_id_idx`, `risks_launch_id_idx`). Neither relates to Stage 1, which adds or drops no index or foreign key. Earlier records say only "performance INFO only", so whether 0005 was listed before isn't recorded.
+  - **Catalog test (16:13:52 to 16:13:58):** `supabase/tests/security_catalog.sql`, unchanged since `e74aaaf` (md5 `444656761f14b65700d0285f7f1e8752`), passed verbatim in one `execute_sql` call. **17 of 17 PASS**, overall PASS:
+    - 6 tables with RLS; 14 readable role-relation pairs; no INSERT, UPDATE, DELETE or TRUNCATE at table or column level; MAINTAIN checked.
+    - 6 sequences, 3 functions, 1 view checked; all three SECURITY DEFINER functions pin `search_path`; 10 identical privileges for each API role.
+    - No default grants for future tables; check 15 "7 of 7 parts match"; no CREATE on `public`; 24 relations and 3 functions owned by `postgres`.
+  - **Fingerprint (16:14:22 to 16:14:29):** `supabase/tests/fingerprint.sql`, unchanged since `e74aaaf` (md5 `006e243bd4bb725d17d2dd12ecef88f2`), passed verbatim in one `execute_sql` call. **All 12 parts equal EVAL-045**, compared as full hashes: `column_write_grants` empty (NULL), and `columns`, `constraints`, `enums`, `functions`, `indexes`, `policies`, `rls+owners`, `seed_data`, `table_grants`, `user_triggers` and `views` identical. `seed_data` `dc85e31b82116a9fa79adaac8399aa90`: the canonical seed is intact.
+  - Neither SQL call was held for confirmation. Each script is a single SELECT; its write keywords appear only in comments and string literals.
+- **Limitations:**
+  - The scripts ran through the connector, not inside an explicit read-only transaction as their headers suggest. Both are single SELECTs.
+  - Not run on live in this entry: C-11 (the stored statement's md5; run later, EVAL-068), separate row counts (the `seed_data` part covers the rows' content), and the app in a browser.
+- **Reproducibility:** the catalog and fingerprint parts are reproducible from repo, read-only; the advisors are recorded only.
+
+### EVAL-067: DR-009 rename and amendment A1 cleanup
+- **Date:** 16:17 to 16:21.
+- **Target:** static. Nothing in this entry touched production.
+- **Run and result:**
+  - **DR-009 rename (16:17):** `git mv supabase/migrations/20261002115318_stage1_security_hardening.sql supabase/migrations/20261002160901_stage1_security_hardening.sql`.
+    - Git records a pure rename: `R100`, 0 insertions, 0 deletions.
+    - The renamed file is byte-identical to the deployed file: 2205 bytes, md5 `f66a638dfb93554ad4f1a2bac0826304`, sha256 `a6efa904...`, Git blob `d4e3811168e2716af7f8ec94440ec50dc8d817a1`.
+    - The closeout commit carries it together with these release records.
+  - **Amendment A1 cleanup:** the session had no mechanism to disable or edit a claude.ai connector, so the owner removed the Supabase Deployment connector in their settings. Afterwards its MCP server disconnected from the session and its tools were withdrawn. The original "Supabase" connector remains, unchanged.
+- **Limitations:** the removal is owner-reported, plus the observed tool withdrawal. The connector's `skip_elicitations` value was never readable.
+- **Reproducibility:** recorded only.
+
+### EVAL-068: C-11 migration parity on live
+- **Date:** 16:28:41 to 16:28:51.
+- **Target:** live read-only, and static. One `execute_sql` call through the original "Supabase" connector, authorized for exactly this check.
+- **Run:**
+  - **Live:** EVAL-022's query, unchanged (the C-11 definition in the reconciliation record, §10; DR-024 step 7): `select version, name, md5(array_to_string(statements, '')), length(array_to_string(statements, '')) from supabase_migrations.schema_migrations`
+  - **Repo:** `md5sum supabase/migrations/*.sql`, with the staged rename in the working tree.
+- **Result: PASS.** Every stored statement matches its repository file.
+
+  | Version | Live md5 | Repo file md5 | Characters |
+  |---|---|---|---|
+  | `20261002092043` (`phase1_schema`) | `2d4cf41fe73b0d2801dd51d69ece8e1b` | Same | 11486 |
+  | `20261002092141` (`demo_seed`) | `d3dafe0c87fc0af20d00d518e96f0380` | Same | 14673 |
+  | `20261002093521` (`revoke_rls_auto_enable_execute`) | `4842aef718ae632952d694863d244b8c` | Same | 569 |
+  | `20261002160901` (`stage1_security_hardening`) | `f66a638dfb93554ad4f1a2bac0826304` | Same: `supabase/migrations/20261002160901_stage1_security_hardening.sql` | 2205 (the file is 2205 bytes) |
+
+  - The first three rows equal EVAL-022. `phase1_schema` is 11488 bytes on disk and 11486 characters as stored, because the file holds multibyte characters; the md5s are identical.
+  - Exactly 4 versions are recorded, each once, and versions, names and order agree with the repository.
+  - The call returned at once, with no confirmation hold. No other production call was made.
+- **Reproducibility:** recorded only. The query above repeats it.
+
 ## Not run (don't claim these)
 
 This list reflects the state after the deployment-path decision (about 14:25).
 
-- **Production deployment of Stage 1:** the migration was **not** applied to live, so live hasn't been verified after it. The deployment path is designated (DR-024), and the deployment is a separate, authorized run. On live, the catalog test passing 17 of 17, the fingerprint matching EVAL-045, and the 0028/0029 advisor lints clearing are expected but **unverified**.
+**Update (Stage 1 deployment, 16:29):** Stage 1 is now applied to live (EVAL-065) and verified there read-only: catalog 17 of 17, fingerprint equal to EVAL-045, no 0028 or 0029 lints (EVAL-066), and C-11 migration parity PASS (EVAL-068). Still not run on live after Stage 1:
+- The app in a browser against live.
+
+- **Production deployment of Stage 1 (as of 14:25; superseded, see the update above):** the migration was **not** applied to live, so live hasn't been verified after it. The deployment path is designated (DR-024), and the deployment is a separate, authorized run. On live, the catalog test passing 17 of 17, the fingerprint matching EVAL-045, and the 0028/0029 advisor lints clearing are expected but **unverified**.
 - **GitHub integration settings:** not applicable. No GitHub integration has ever been connected (EVAL-060). The earlier entry here assumed one might exist.
 - **Browser:** the app loaded in a browser against the **live** project. The live publishable key was never retrieved (DR-011).
 - **CI:** none exists in this repository.
