@@ -1,0 +1,317 @@
+# Security findings
+
+One record per confirmed security finding.
+
+- **Sources:** Audit 1 and Phase 2B, 2026-10-02, at baseline `cb27437`. Live matched the repository at the time (EVAL-022, EVAL-023).
+- **Full analysis:** [`2026-10-02-audit-2b-reconcile.md`](2026-10-02-audit-2b-reconcile.md).
+- **Evidence IDs (EVAL-NNN):** refer to [`../evaluation/EVALUATION_LOG.md`](../evaluation/EVALUATION_LOG.md).
+
+**Status fields:**
+- **Confirmed:** the evidence shows the finding on the baseline.
+- **Remediation specified:** the fix is written down in the reconciliation record.
+- **Implemented:** the fix is merged, applied through the deploy path, and verified by its tests.
+
+**Severity scale (Phase 2B):**
+- **High:** unauthenticated, low effort, and material integrity or availability impact on the public demo today.
+- **Medium:** real but limited or recoverable impact.
+- **Low:** latent, or defense in depth.
+
+Audit 1's original rating is kept beside the revised one.
+
+| ID | Finding | Audit 1 ID | Original | Revised | Confirmed | Remediation specified | Implemented |
+|---|---|---|---|---|---|---|---|
+| SEC-001 | Anonymous callers can forge readiness and impersonate approvers | C1 | Critical | High | Yes | Yes | **No** |
+| SEC-002 | Anonymous callers can truncate and re-seed all launch data | C2 | Critical | Medium | Partially (it restores the seed) | Yes | **No** |
+| SEC-003 | Unbounded public writes can push the database into read-only mode | H1, N1 | High | High | Yes | Yes | **No** |
+| SEC-004 | Visitor text is shown as authoritative on the canonical overview | H3, H4 | High, High | Medium; H4 Low | Yes | Yes | **No** |
+| SEC-005 | `evidence.source` accepts `javascript:` and other unsafe URLs | H2 | High | Low (latent) | Yes | Yes | **No** |
+| SEC-006 | Default privileges give API roles privileges on future tables | H5 | High | Low | Yes (facts) | Yes | **No** |
+
+**Nothing below is implemented.**
+- No remediation migration exists in `supabase/migrations/`.
+- None was applied to the live project by these sessions.
+- The Phase 1 public write paths were still granted when live was last read (10:58 UTC).
+
+---
+
+## SEC-001: Anonymous callers can forge readiness and impersonate approvers
+
+- **Finding:** anyone holding the publishable key, which ships in the client, can make the canonical Halcyon launch read **Ready**. No sign-in is needed. They can also place fabricated approvers and text into the decision log that every visitor sees.
+- **Attack surface:**
+  - **`POST /rest/v1/evidence`:**
+    - `anon` and `authenticated` have column INSERT on `gate_id, type, title, summary, source, recorded_on`.
+    - The policy `"Public append"` is `with check (true)`.
+  - **`POST /rest/v1/rpc/set_gate_status`:**
+    - EXECUTE is granted to `anon` and `authenticated`.
+    - `decided_by` and `rationale` are supplied by the caller.
+  - Gate ids run sequentially from 1 to 16.
+- **Evidence:**
+  - EVAL-016: grants, policy, advisor lints 0028 and 0029.
+  - EVAL-017 (P1): 10 fabricated "Sign-off" rows and 10 calls gave `16 of 16 passed`.
+  - EVAL-029: re-verified on a copy proven identical to live. The overview would render `decided_by` "Trust & Safety Lead" and a rationale with an external-looking link.
+  - EVAL-027: the overview renders `rationale` and `decided_by`.
+  - EVAL-024: no `anon` or `authenticated` calls recorded, so no recorded exploitation.
+- **Root cause:** four things combine:
+  1. public write authority over canonical rows
+  2. a Passed rule satisfiable with the caller's own evidence
+  3. identity claims that come from the caller
+  4. every row displayed as authoritative
+
+  The rule logic, the SECURITY DEFINER hygiene and the public reads are not at fault.
+- **Original severity:** Critical (Audit 1).
+- **Revised severity:** High (Phase 2B).
+- **Reason for the change:**
+  - It meets the High definition exactly: unauthenticated, trivial, with material integrity impact.
+  - It isn't treated as worse because the impact is integrity only, on synthetic data. There's no confidentiality impact, the owner can restore the seed, and no exploitation was recorded.
+- **Remediation (specified):**
+  - **Stage 1, migration M-1 (DR-013):** revoke EXECUTE on `set_gate_status` and `reset_demo_data` from `anon` and `authenticated`, revoke INSERT on `evidence`, and drop `"Public append"`. Validated as a dry run (EVAL-029, EVAL-030).
+  - **Stage 2 (DR-013, DR-015, DR-016):**
+    - a shared sandbox launch
+    - a database-set `origin` on evidence and decisions (M-4, M-5)
+    - sandbox functions that refuse canonical gates, fix `decided_by = 'Sandbox visitor'` and set `recorded_on` on the server (M-6)
+    - visitor labeling in the UI (A3 to A5)
+- **Rejected alternatives:**
+  - **Visitor provenance alone:** `gates.status` is one column, so a visitor's change still replaces the canonical status.
+  - **Excluding visitor rows from readiness:** that needs separately stored status, which becomes the sandbox.
+  - **Labeling alone:** not enforced.
+  - **Requiring Auth now:** it doesn't solve provenance, validation or storage bounds, and adds heavy setup.
+  - **Per-visitor sandboxes:** they need Auth, CAPTCHA, and cleanup of anonymous users.
+  - **A client-only sandbox:** it demonstrates client logic, not database enforcement.
+  - **Audit 1's short-term "label visitor rows, optionally exclude visitor evidence from Passed":** visitors could still change canonical status.
+- **Invariants:** I3, I4, I7, I11, I15, I17.
+- **Regression tests:**
+  - **Stage 1:** C-2, C-3, C-4, C-5, B-1.
+  - **Stage 2:** B-4, C-14, and the end-to-end test "a sandbox write leaves the canonical overview unchanged".
+  - Scenarios A and F in [`scenarios.md`](../evaluation/scenarios.md).
+- **Current status:**
+  - Confirmed: **yes**
+  - Remediation specified: **yes**
+  - Implemented: **no**
+
+## SEC-002: Anonymous callers can truncate and re-seed all launch data
+
+- **Finding:**
+  - `public.reset_demo_data()` is executable by `anon` and `authenticated`.
+  - It truncates `launches, gates, evidence, risks, decisions, rollout_stages` with `RESTART IDENTITY`, then re-inserts the seed.
+- **Attack surface:**
+  - `POST /rest/v1/rpc/reset_demo_data`, with no arguments.
+  - The function is SECURITY DEFINER, owned by `postgres` (not a superuser), uses `search_path = ''`, and has no dynamic SQL.
+- **Evidence:**
+  - EVAL-016: the grant and the advisor lints.
+  - EVAL-017 (P2): an `anon` call took decisions from 5 to 4 and evidence from 11 to 10.
+  - EVAL-027: no client code calls it, and the Reset button is disabled and unwired.
+- **Original severity:** Critical (Audit 1): "erase all data, including the append-only decision log".
+- **Revised severity:** Medium (Phase 2B; partially confirmed).
+- **Reason for the change:**
+  - **What lowered it:**
+    - It *restores* the seed, so it can't forge state.
+    - Every row it erases today is non-authoritative.
+    - Its reach is fixed to six `public` tables, with no dynamic SQL; Auth and storage are untouched.
+  - **What remains:**
+    - It erases post-seed rows and the decision log.
+    - Each call takes six ACCESS EXCLUSIVE locks.
+    - Its table-wide reach would destroy any future non-seed rows.
+- **Remediation (specified):**
+  - **Stage 1, M-1:** revoke EXECUTE from `anon` and `authenticated`. `reset_demo_data()` stays the owner's reseed tool.
+  - **Stage 2 (DR-014), `sandbox_reset()`:**
+    - deletes visitor rows on sandbox launches only
+    - restores sandbox gate statuses from their source gates
+    - enforces a 5-minute cooldown
+    - uses no TRUNCATE and no `RESTART IDENTITY`
+- **Rejected alternatives:**
+  - **Keep it public with constraints:** no constraint makes a table-wide TRUNCATE safe for anonymous callers. RLS doesn't apply to TRUNCATE, and the function's owner owns the tables.
+  - **A scheduled reseed through `pg_cron`:** suggested by Audit 1. Not needed: the interim has nothing to reset, and `pg_cron` isn't installed.
+  - **A whole-database `request_demo_reset()` with a cooldown:** suggested by Audit 1, replaced by the scoped sandbox reset.
+- **Invariants:** I4, I7, I13.
+- **Regression tests:**
+  - **Stage 1:** C-5, B-1.
+  - **Stage 2:** B-4 (scope, cooldown, canonical fingerprint unchanged).
+  - Scenario B.
+- **Current status:**
+  - Confirmed: **partially**. The erasure and lock behavior are confirmed; it can't forge state.
+  - Remediation specified: **yes**
+  - Implemented: **no**
+
+## SEC-003: Unbounded public writes can push the database into read-only mode
+
+- **Finding:**
+  - Nothing limits public write volume:
+    - One `anon` bulk INSERT can add thousands of evidence rows.
+    - `set_gate_status` adds one decision per call without limit.
+  - On the free plan, a database above 500 MB goes read-only, blocking inserts and deletes until the owner intervenes.
+  - **Related (N1):** the list and overview fetch every evidence id per gate, so page payloads grow with the row count.
+- **Attack surface:**
+  - `POST /rest/v1/evidence` with JSON arrays. It's bounded only by the gateway's body limit (unverified) and `anon`'s 3-second statement timeout.
+  - `POST /rest/v1/rpc/set_gate_status`, with unlimited calls.
+- **Evidence:**
+  - EVAL-017 (P3): 20,010 rows and 2,792 kB from compressible text.
+  - EVAL-017 (P4): 500 toggles produced 504 decisions.
+  - **EVAL-032: 6,000 incompressible rows, 13 MB, in 0.61 s, inside the 3-second timeout.**
+  - EVAL-026: the 500 MB read-only rule.
+  - EVAL-016: no caps and no triggers.
+- **Original severity:** High (Audit 1).
+- **Revised severity:** High (Phase 2B; kept).
+- **Reason:**
+  - It's an unauthenticated, low-effort, realistic path to the project going read-only, and recovery needs the owner.
+  - At about 2.3 KB per row, roughly 220,000 rows reach 500 MB. That figure is arithmetic, not measured.
+- **Remediation (specified):**
+  - **Stage 1, M-1:** the public write bound becomes zero.
+  - **Stage 2 (DR-018):**
+    - per-gate caps of 10 visitor evidence rows and 20 visitor decisions, enforced inside the sandbox functions under the gate's row lock
+    - a 5-minute reset cooldown
+    - canonical gates accept 0
+    - worst case: 480 visitor rows, about 2 MB
+- **Rejected alternatives:**
+  - **Triggers on direct inserts:**
+    - unneeded once writes go only through the functions
+    - locking needs UPDATE privilege, so the trigger would itself need SECURITY DEFINER
+    - they complicate multi-row statements
+  - **An Edge Function with per-IP limits:** adds server code and secret handling.
+  - **`db_pre_request` per-IP limits:** keyed on the first `X-Forwarded-For` value, whose spoofability is unverified, and they write a row per request. Deferred.
+  - **Per-session caps:** a client-generated id is forgeable.
+  - **A global ceiling:** implied by the fixed gate count times the per-gate cap.
+- **Invariants:** I3 (Stage 1), I12 (Stage 2).
+- **Regression tests:**
+  - **Stage 1:** C-2, C-3, B-1.
+  - **Stage 2:** B-4 (the 11th evidence item and the 21st decision are denied; concurrency at one below the cap) and C-14.
+  - Scenario C.
+- **Current status:**
+  - Confirmed: **yes**
+  - Remediation specified: **yes**
+  - Implemented: **no**
+
+## SEC-004: Visitor text is shown as authoritative on the canonical overview
+
+- **Finding:**
+  - The canonical overview shows visitor-controlled text as if it were authoritative:
+    - each gate's latest decision `rationale`, in the "what's missing" line
+    - `decided_by`, in Latest decisions
+  - These fields accept bidi and control characters.
+  - **Related (Audit 1 H4):** evidence `recorded_on` and `type` are set by the caller, but they're never fetched or rendered. Their only current effect is through evidence counts, which is SEC-001.
+- **Attack surface:**
+  - `set_gate_status` arguments: `rationale`, `decided_by`, `waiver_rationale`.
+  - Evidence insert columns: `type, title, summary, source, recorded_on`.
+- **Evidence:**
+  - EVAL-027:
+    - `src/lib/overview.ts:120` passes the rationale to `src/pages/LaunchOverviewPage.tsx:104`, and `decided_by` renders at `:171`.
+    - React renders text nodes only, with no HTML sinks.
+  - EVAL-017 (P5): an `anon` insert stored an HTML-like title, a summary with a right-to-left override character (U+202E), a `javascript:` source and a 9999-12-31 date. An injection-style rationale was stored as inert text.
+  - EVAL-029: a forged decider and rationale render on the overview.
+- **Original severity:** High for H3 and High for H4 (Audit 1).
+- **Revised severity:** Medium for H3, Low for H4 (merged into SEC-001 and the gate-sheet specification) (Phase 2B).
+- **Reason for the change:**
+  - This is content injection and impersonation on the canonical page, without code execution.
+  - It's wider than Audit 1 reported, because the canonical page displays it.
+  - SEC-001's remediation removes it from the canonical launch.
+- **Remediation (specified):**
+  - **Stage 1, M-1:** no visitor text can reach the canonical launch.
+  - **Stage 2:**
+    - **Text checks (M-4):**
+      - reject C0 controls (tab, LF and CR allowed only in multi-line fields), DEL, C1 controls, and U+202A to U+202E and U+2066 to U+2069
+      - single-line titles
+      - multilingual text accepted
+    - a fixed `decided_by` and a server-set `recorded_on` (DR-016)
+    - a "Visitor" label (A5)
+    - React text nodes only (I16)
+- **Rejected alternatives:**
+  - **Rejecting all non-ASCII text:** breaks multilingual input. The validated rule accepts Japanese, Arabic with a right-to-left mark, Hindi with a zero-width joiner, and emoji sequences (EVAL-030).
+  - **Labeling alone.**
+  - **Audit 1's date bounds for visitor `recorded_on`:** superseded by the server-set date.
+- **Invariants:** I14, I15, I16.
+- **Regression tests:**
+  - B-3: the text table.
+  - B-4: unsafe text denied; the fixed decider.
+  - End to end: a `<script>` title renders as text; the visitor label shows.
+  - Scenario F.
+- **Current status:**
+  - Confirmed: **yes**
+  - Remediation specified: **yes**
+  - Implemented: **no**
+
+## SEC-005: `evidence.source` accepts `javascript:` and other unsafe URLs
+
+- **Finding:** `evidence.source` has only a length limit of 500, so `javascript:`, `data:` and `http:` values are accepted.
+- **Attack surface:**
+  - evidence INSERT, which is public today
+  - any future UI that renders `source` as a link
+- **Evidence:**
+  - EVAL-016: the constraint listing.
+  - EVAL-017 (P5): `javascript:alert(document.domain)` was stored.
+  - EVAL-027: no client code selects or renders `source`, and no `href` is built from data.
+- **Original severity:** High (Audit 1).
+- **Revised severity:** Low, latent (Phase 2B).
+- **Reason for the change:**
+  - It isn't rendered anywhere. It becomes stored XSS only if a future UI turns it into a link.
+  - It must be fixed before any UI renders `source`.
+- **Remediation (specified):**
+  - **Stage 1, M-2:** a CHECK `evidence_source_https` with the pattern validated in EVAL-030.
+  - **Stage 2, A6 (DR-017):**
+    - visitor-origin `source` is plain text, never a link
+    - seed-origin `source` becomes a link only if `new URL(source).protocol === 'https:'`, with `rel="noopener noreferrer nofollow"`
+- **Rejected alternatives:**
+  - **A UI-only check:** the database rule is the durable guard.
+  - **Allowing `http:`.**
+  - **Making visitor URLs clickable with `rel` attributes:** still a phishing vector.
+- **Invariants:** I10, I16.
+- **Regression tests:**
+  - B-3: the source table; add the empty string.
+  - Unit tests for `sourceDisplay()`.
+  - End to end: a visitor source has no anchor.
+  - Scenario G.
+- **Current status:**
+  - Confirmed: **yes**
+  - Remediation specified: **yes**
+  - Implemented: **no**
+
+## SEC-006: Default privileges give API roles privileges on future tables
+
+- **Finding:**
+  - For tables and views that `postgres` creates in `public`, `anon` and `authenticated` automatically receive MAINTAIN, REFERENCES, TRIGGER and TRUNCATE.
+  - Objects created by `supabase_admin` give them every privilege. `postgres` isn't a member of `supabase_admin`, so migrations can't change those defaults.
+- **Attack surface:**
+  - a future migration that creates a table and forgets to revoke
+  - none of the four privileges is usable through the Data API today
+- **Evidence:**
+  - EVAL-025: `pg_default_acl`, role membership, ownership.
+  - EVAL-023: every current table carries exactly its explicit grants (`table_grants` and `column_write_grants` parity).
+- **Original severity:** High (Audit 1).
+- **Revised severity:** Low (Phase 2B; facts confirmed, impact overstated).
+- **Reason for the change:**
+  - There's no current exposure.
+  - The four privileges aren't usable through the Data API.
+  - Functions and sequences that `postgres` creates grant nothing by default.
+- **Remediation (specified):**
+  - **Stage 1, M-3:** `alter default privileges for role postgres in schema public revoke all on tables from anon, authenticated;`. Validated by simulation (EVAL-031), except for MAINTAIN on Postgres 17.
+  - Catalog test C-9 as the durable guard.
+- **Rejected or narrowed alternatives:**
+  - **Audit 1's statement also covered sequences and functions.** Narrowed to tables, because `postgres`-created functions and sequences already grant nothing (EVAL-025).
+  - **Changing `supabase_admin`'s defaults:** not possible from migrations.
+  - **Relying only on revoke-everything in each migration:** kept as practice, but not sufficient alone.
+- **Invariants:** I9, I3.
+- **Regression tests:**
+  - C-9, C-10, B-2.
+  - Scenario H.
+- **Current status:**
+  - Confirmed: **yes** (facts)
+  - Remediation specified: **yes**
+  - Implemented: **no**
+
+---
+
+## Audit items that aren't SEC records
+
+| Audit ID | Disposition | Where tracked |
+|---|---|---|
+| H6 missing security headers | Not a current vulnerability; nothing is hosted | Release gates R-12, R-13 |
+| M1 Auth signups | Low; settings unreadable | Release gate R-8 |
+| M2 raw database error text | Rejected as security; a UX item | A1 |
+| M3 connector has owner-level access | Operational, Low | Reconciliation record §6 |
+| M4 cross-launch gate references | Stage 2 integrity guard | M-4 composite keys |
+| M5 unrestricted transitions | Rejected as security; product behavior | Deferred |
+| L1 repository visibility | Information; private, history clean | None |
+| L2 free-plan pausing, L3 seeded timestamps | Rejected as security | Deferred |
+| N1 payload growth | Merged | SEC-003 |
+| N2 zero-gate "Ready" | Deferred product fix | Reconciliation record §13 |
+| N3 destructive integrity suite | Process invariant | I19 |
+| N4 unconfirmed deploy path | Release gate | R-9, DR-019 |
+| N5 route ids beyond 2^53 | Deferred UX | A2 |
