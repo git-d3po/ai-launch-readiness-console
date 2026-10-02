@@ -6,7 +6,7 @@
 > - **Trust model:** the public write and reset model in section 1 is superseded by the accepted Phase 2B trust-model decision (DR-013, DR-014): a read-only canonical launch plus a disposable shared sandbox, with reset limited to the sandbox. The superseded model had visitors editing the launch, and "Reset demo data" restoring the whole seed.
 > - **Implementation:**
 >   - **Stage 1** (no public writes, https-only evidence sources, closed default privileges) is in the repository, verified locally and pushed to `claude/phase1-schema` (DR-021). It isn't merged to `main`.
->   - Stage 1 is **not yet applied to the live project**, which still had the Phase 1 public write paths when it was last read (2026-10-02, 12:39 UTC). Production deployment is pending, because the single deploy path couldn't be established (DR-019, release gate R-9).
+>   - Stage 1 is **not yet applied to the live project**, which still had the Phase 1 public write paths when it was last read (2026-10-02, 13:39 UTC). The deployment path is designated (DR-024: the Supabase connector); applying Stage 1 is a separate, authorized run.
 >   - The Stage 2 sandbox isn't built.
 > - **Authentication:** the project deliberately doesn't use Supabase Auth at this stage (DR-020). That's an explicit tradeoff, not a security advantage, and the old Auth-settings release gate is retired (DR-022).
 > - **Build approach:** the project is built directly in this repository against its own Supabase project, not through Lovable (DR-004).

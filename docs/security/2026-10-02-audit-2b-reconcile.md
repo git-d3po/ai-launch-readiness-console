@@ -10,6 +10,7 @@
   - **No remediation had been implemented when this record was written.**
   - **Update, Stage 1 (about 12:05):** Stage 1 is implemented in the repository and verified locally on Postgres 17, but **not applied to live** (§15, DR-021). Everything above §15 is the Phase 2B record as written, apart from the status columns in §9 and §11 and the items marked "Update" in §12 and §14.
   - **Update, Stage 1 release checkpoint (about 13:10):** Stage 1 is pushed to `origin/claude/phase1-schema` and still **not applied to live**. The single deploy path couldn't be established with the available tools: decision-tree Case C (§16). Release gate R-8 is retired (DR-022), and SEC-007 has a recorded disposition (DR-023).
+  - **Update, deployment-path decision (14:15 to 14:25):** DR-024 designates the Supabase connector as the single production migration path, so release gate R-9 is met (§11, §17). The earlier reading that GitHub had been linked to the project was wrong; it's corrected in §16 and §17. §8 gains an "Update" note on how I20 applies. Stage 1 is still **not applied to live**.
 - **Related:**
   - [`findings.md`](findings.md): one record per finding
   - [`../evaluation/EVALUATION_LOG.md`](../evaluation/EVALUATION_LOG.md): the evidence, cited as EVAL-NNN
@@ -279,6 +280,13 @@ These are the properties the remediation must establish and the tests must keep 
 "Holds today" is a claim about the baseline (`cb27437`, live as read at 10:44 to 10:58 UTC). It isn't a
 claim about the current live state, which this documentation commit didn't read.
 
+**Update (DR-024): how I20 applies to connector deployments.** I20's wording is unchanged. As DR-019's rationale states, it covers version parity as well as bytes. Under DR-024 a migration passes through three states:
+- **Before deployment:** the authored filename may carry the timestamp from when the migration was created.
+- **During deployment:** Supabase assigns the production version when the connector applies the migration.
+- **After deployment:** the repository file is renamed to that recorded version, with its contents unchanged (DR-009).
+
+I20 is checked after the rename: the repository and production must then agree on version, contents and order. The authoring timestamp isn't part of the invariant.
+
 ## 9. Remediation sequence
 
 | Step | What | Depends on | Establishes | Status |
@@ -288,7 +296,7 @@ claim about the current live state, which this documentation commit didn't read.
 | S2 | Migration M-1: revoke the public write paths | D1 | I3, I4, I7 | **In the repository, verified locally;** not applied to live |
 | S3 | Migration M-2: https check on `evidence.source` | None | I10 | **In the repository, verified locally** (refined pattern, §15); not applied to live |
 | S4 | Migration M-3: default privileges | None | I9 | **In the repository, verified locally on Postgres 17;** not applied to live |
-| S5 | **Verify on production:**<br>• the catalog test passes<br>• the advisor shows no 0028 or 0029 lints<br>• migration hashes match<br>• the fingerprints match<br>• the integrity suite passes 6 of 6 **locally** | S1 to S4 | All Stage 1 invariants | **Blocked** by R-9, still at the release checkpoint (§16). The local equivalents pass (§15, EVAL-056) |
+| S5 | **Verify on production:**<br>• the catalog test passes<br>• the advisor shows no 0028 or 0029 lints<br>• migration hashes match<br>• the fingerprints match<br>• the integrity suite passes 6 of 6 **locally** | S1 to S4 | All Stage 1 invariants | **Pending** the authorized deployment run; R-9 is met (DR-024). Not done on production. The local equivalents pass (§15, EVAL-056, EVAL-061) |
 | S6 | The owner checks the Auth dashboard settings and records them | None | Closes M1 | **Retired** with R-8 (DR-022), not passed: the settings stay unread |
 | Stage 2 | **At the start of the gate-sheet phase:**<br>• M-4: provenance, sandbox columns, composite keys, text checks<br>• M-5: `set_gate_status` gains an origin; the seed builds the sandbox<br>• M-6: the three sandbox functions<br>• application items A3 to A9 | D1 to D6 | I11 to I16 | Not started |
 
@@ -297,6 +305,8 @@ Stage 1 (S1 to S6) is the next implementation phase.
 **Update, Stage 1:** S1 to S4 are done in the repository. S5 and S6 wait on the owner (R-9, R-8). See §15.
 
 **Update, release checkpoint:** S1 to S4 are pushed. S5 is still blocked by R-9 (§16). S6 was retired with R-8 (DR-022).
+
+**Update, deployment-path decision:** R-9 is met (DR-024). S5 now waits only on the separately authorized deployment run (§17).
 
 ### Migration specifications
 
@@ -481,14 +491,14 @@ inside a rolled-back transaction.
 | Gate | Condition | Status |
 |---|---|---|
 | R-1 | D1 to D7 recorded in `DECISIONS.md`, and the brief's "Reset demo data" line updated | **Decisions recorded** in the commit that added this record. The brief line itself is kept verbatim as history, and a notice at the top of `PROJECT_BRIEF.md` supersedes it. |
-| R-2 | M-1, M-2 and M-3 applied through the single chosen path, with repository files renamed to the recorded versions | **Blocked:** migration written, verified locally and pushed; no single path yet (R-9, §16) |
-| R-3 | C-1 to C-13 pass against production | **Not met.** The committed catalog test fails on live in 4 of 17 checks until the migration is applied (EVAL-048); unchanged at 12:39 (EVAL-051) |
+| R-2 | M-1, M-2 and M-3 applied through the single chosen path, with repository files renamed to the recorded versions | **Not yet passed.** The migration is written, verified locally and pushed, and the path is designated (DR-024). It waits on the authorized deployment run; the file is renamed to the recorded version after application (§17) |
+| R-3 | C-1 to C-13 pass against production | **Not yet passed.** The committed catalog test fails on live in 4 of 17 checks until the migration is applied (EVAL-048); unchanged at 12:39 (EVAL-051) and 13:39 (EVAL-059) |
 | R-4 | B-1 to B-3 pass on an ephemeral database built from the repository, and C-12 parity holds | **Met locally:** 24 of 24 (EVAL-043), and again with 41 reject cases (EVAL-056); pre-Stage-1 parity with live holds (EVAL-039, EVAL-051) |
 | R-5 | The integrity suite passes 6 of 6 locally; Vitest, typecheck and build are green | **Met** (EVAL-044, EVAL-047; again in EVAL-056 and EVAL-058) |
-| R-6 | The security advisor shows no `anon` or `authenticated` SECURITY DEFINER lints | **Not met** on live: 0028 and 0029 still list the two functions (EVAL-049); unchanged at 12:39 (EVAL-051) |
+| R-6 | The security advisor shows no `anon` or `authenticated` SECURITY DEFINER lints | **Not yet passed.** On live, 0028 and 0029 still list the two functions (EVAL-049); unchanged at 12:39 (EVAL-051) and 13:40 (EVAL-059) |
 | R-7 | The history and bundle secret scans are clean | **Met with detect-secrets:** no real secrets in the full history (EVAL-057) or the production bundle (EVAL-058). gitleaks couldn't be installed (network policy), and GitHub secret scanning isn't available on this repository |
 | R-8 | The Auth dashboard settings are checked and recorded; signups disabled or confirmed harmless | **Retired, not passed** (DR-022). Auth is intentionally not used; the release instead requires catalog checks 13 and 15 on every deployment (`anon` and `authenticated` hold identical privileges and policies). The settings stay unread: a documented tradeoff, not a security advantage |
-| R-9 | The GitHub integration deploy settings are confirmed before anything merges to `main` | **Open, blocking.** The integration can deploy from `main` on every plan (EVAL-037); its setting is dashboard-only. Still open at the release checkpoint: no available tool reads it (EVAL-052), and a push to `claude/phase1-schema` deployed nothing (EVAL-053) |
+| R-9 | The GitHub integration deploy settings are confirmed before anything merges to `main` | **Met** by the deployment-path decision (DR-024, 14:15). The Supabase connector is the designated single path and has applied every production migration (EVAL-022, EVAL-059). No GitHub integration has ever been connected (owner-verified at 13:54, EVAL-060), and no CI workflow exists, so nothing deploys from `main`. The earlier "Open, blocking" status (EVAL-052, EVAL-053) rested on a misreading, corrected in DR-019 and EVAL-052 |
 | R-10 | The gate-sheet phase begins with M-4 to M-6 and B-4, before any write UI exists | Not started |
 
 **Before public deployment:**
@@ -508,11 +518,13 @@ These remain **unknown**. Don't treat any of them as verified.
 - **API gateway:** request-size and rate-limit behavior for the Data API.
 - **OpenAPI:** whether the root is served to the publishable key.
 - **Deployment:** the GitHub/Supabase integration settings (which branch, if any, deploys migrations).
+  - **Update (DR-024):** resolved. No GitHub integration has ever been connected (owner-verified, EVAL-060), and the connector is the designated path.
 - **Data API settings:** confirmed only by the owner's report from the creation form (DR-005).
 - **Postgres 17:** the MAINTAIN privilege behavior for M-3. It was simulated on Postgres 16 without MAINTAIN.
   - **Update:** verified on a local Postgres 17.10 build that mirrors live's default ACL (EVAL-040). Not probed on live, because that needs DDL.
 - **GitHub integration "Deploy to production" (added in Stage 1):** on or off, and which branch it deploys. The docs say it works without branching (EVAL-037). It blocks R-2 and R-9.
   - **Update (release checkpoint):** still unknown. No available tool exposes it (EVAL-052).
+  - **Update (DR-024):** resolved: no integration exists, so there's no setting. It no longer blocks R-2 or R-9.
 - **Function default privileges (added in Stage 1):** a global fix for SEC-007 hasn't been decided or tested.
   - **Update (release checkpoint):** decided for Stage 1: no default change, and an explicit revoke for every new function (DR-023). The global fix stays undecided and untested.
 - **Default-privileges toggle:** whether the dashboard's "Default privileges for new entities" toggle rewrites `pg_default_acl`.
@@ -527,6 +539,7 @@ These remain **unknown**. Don't treat any of them as verified.
 - **Connector timeouts:** the root cause is unconfirmed (EVAL-006).
 - **Live state after 10:58 UTC on 2026-10-02:** not re-read; this documentation commit didn't touch production.
   - **Update:** re-read, read-only, at 12:00 (EVAL-048) and 12:39 (EVAL-051): unchanged. The migration history was last checked at 13:03 (EVAL-058).
+  - **Update (deployment-path decision):** re-read at 13:38 to 13:41 (EVAL-059): unchanged. The migration history was last read at 14:01 (EVAL-060).
 
 ## 13. Deferred issues
 
@@ -626,12 +639,16 @@ The Phase 2B report ended with draft entries numbered DR-01 to DR-13. That numbe
 
 **Update (release checkpoint):** step 4 is retired (DR-022). Section 16 replaces this list.
 
+**Update (deployment-path decision):** step 1's premise, a GitHub integration with unknown settings, was a misreading: no integration exists. DR-024 chose the connector, so step 2 applies with the rename (DR-009). See §17.
+
 ## 16. Stage 1 release checkpoint (2026-10-02, 12:36 to 13:10)
 
 **Starting point:** `e74aaafdb20e23258852cedfc5458a7ed98e79cb`, clean, 2 commits ahead of `origin`.
 **Decisions:** DR-022 (release gate R-8 retired) and DR-023 (SEC-007). **Evidence:** EVAL-051 to EVAL-058.
 
 **Outcome: decision-tree Case C.** Stage 1 is **implementation-complete, verified locally and pushed**. **Production deployment is pending**, because the single deploy path couldn't be established. Production wasn't changed: nothing in this section wrote to the live project.
+
+**Update (deployment-path decision):** this section is the record as of 13:10. G4 is now met by DR-024, and the owner actions below are superseded; see §17.
 
 ### Stage 1 gates
 
@@ -652,6 +669,7 @@ The four states stay separate: implemented in the repository, verified locally, 
 - The GitHub integration's "Deploy to production" option applies new migrations when changes reach the production branch, on every plan and without branching (EVAL-037). Whether it's on, which branch it watches and which directory it reads are visible only in the dashboard.
 - The available tools don't expose those settings. The Supabase tools cover projects, branches, migrations, logs, advisors and SQL; the GitHub tools cover repository contents, commits and workflows (EVAL-052).
 - Nothing observable separates "on" from "off". `main` hasn't changed since before the integration was linked, and a push to `claude/phase1-schema` deployed nothing (EVAL-053).
+  - **Correction (§17, EVAL-060):** no GitHub integration was ever linked. "Since before the integration was linked" came from a misreading of the owner's 09:18 instruction, which referred to the Supabase connector. The reasoning in this subsection rested on that premise.
 - **Each available action would have broken a rule:**
   - Applying through the connector could create a second mechanism, if the integration later deploys the same file from `main` (DR-019, finding N4).
   - Merging to `main` to find out would be a production deployment through an unverified path, and merging to `main` was out of scope.
@@ -705,3 +723,41 @@ Nothing here writes. The destructive integrity suite and `stage1_behavior.sql` s
 ### Stage 2 entry
 
 Not yet. The repository is at a clean, documented, locally verified release checkpoint, but production still has the pre-Stage-1 posture: the public write paths in questions 1 to 6 stay open on live until G4 to G6 are done. Stage 2 adds public functions on top of Stage 1's read-only boundary, so it should start from a production-verified Stage 1. Starting Stage 2 work earlier is the owner's call.
+
+## 17. Deployment-path decision (2026-10-02, 13:54 to 14:25)
+
+**Decision:** DR-024. **Evidence:** EVAL-059 to EVAL-061. Production wasn't changed: nothing in this section wrote to the live project.
+
+**What changed:**
+- **A correction.** The records said GitHub had been linked to the Supabase project at about 09:18 (DR-019, EVAL-052, §16). That misread the owner's 09:18 instruction, "Supabase is now linked to this repo. Use that link.", which referred to the Supabase connector. No GitHub integration has ever been connected; the owner confirmed it at 13:54 (EVAL-060). The misreading was the documentation's, not the owner's.
+- **A designation.** DR-024 makes the connector, the mechanism behind all three production migrations, the single authoritative path. The GitHub integration stays an unused alternative that would need its own decision.
+- **One audit answer changes.** §16's question 12, "Is there exactly one authoritative production deployment mechanism?", now reads: yes, the connector (DR-024). The other answers are unchanged; they describe live before the migration.
+
+### Stage 1 gates now
+
+| Gate | Status | Evidence |
+|---|---|---|
+| G1 Implementation | **Done:** `e74aaaf`; the behavior test strengthened in `8a1ad9d` | DR-021 |
+| G2 Local verification | **Done,** and again on this section's commit: catalog 17/17, behavior 24/24, fingerprint 12/12, integrity 6/6 | EVAL-056, EVAL-058, EVAL-061 |
+| G3 Pushed | **Done** through `548701b`. This section goes up with the commit that adds it | EVAL-053 |
+| G4 Deployment path (R-9) | **Met** by DR-024 | EVAL-060 |
+| G5 Production application (R-2) | **Not yet passed:** waits on the authorized deployment run | EVAL-059: live still has the 3 earlier migrations |
+| G6 Production verification (R-3, R-6, C-11, data) | **Not yet passed:** follows G5 | EVAL-059: catalog 13 of 17; lints 0028 and 0029 listed |
+
+### The next run: deploying Stage 1 under DR-024
+
+It's a separate, authorized run; nothing in this section performs it.
+1. Replay the committed files locally: catalog 17/17, behavior 24/24, fingerprint 12/12, integrity 6/6.
+2. Read-only preflight:
+   - the history holds exactly the 3 earlier versions;
+   - the catalog test is 13 of 17, failing checks 3, 9, 14 and 15;
+   - the fingerprint equals EVAL-023;
+   - the seed is intact.
+3. One `apply_migration` call: `name` = `stage1_security_hardening`, `query` = the exact bytes of `20261002115318_stage1_security_hardening.sql`.
+4. Read the recorded version, `<V>`.
+5. Check parity: `<V>` is recorded exactly once, and its stored statement has md5 `f66a638dfb93554ad4f1a2bac0826304` (2205 characters).
+6. Rename the file to `<V>_stage1_security_hardening.sql`, contents unchanged.
+7. Run the read-only verification in §16, with `<V>` as the expected 4th version.
+8. Mark R-2, R-3 and R-6 with that evidence, then make one closeout commit and push.
+
+If any check fails, stop and reconcile. Don't retry blindly, repair the history, or apply a compensating migration without analysis.

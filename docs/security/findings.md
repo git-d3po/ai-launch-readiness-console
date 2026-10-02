@@ -31,11 +31,11 @@ Audit 1's original rating is kept beside the revised one.
 | SEC-006 | Default privileges give API roles privileges on future tables | H5 | High | Low | Yes (facts) | Yes | Yes | **No** |
 | SEC-007 | Functions that `postgres` creates are executable by PUBLIC by default | None (new in Stage 1) | n/a | Low (latent) | Yes | Yes: no default change; explicit revoke per function (DR-023) | Nothing to change in Stage 1; guarded by catalog check 9 | n/a (nothing to apply) |
 
-**Status at the Stage 1 release checkpoint (2026-10-02, about 13:10):**
+**Status after the deployment-path decision (2026-10-02, about 14:25):**
 - **In the repository:** migration `supabase/migrations/20261002115318_stage1_security_hardening.sql` implements the Stage 1 part of SEC-001 to SEC-006. It was verified on a local Postgres 17 build (EVAL-039 to EVAL-047), and again after the behavior test was strengthened (EVAL-056).
 - **Pushed:** `origin/claude/phase1-schema` carries it (EVAL-053). It isn't merged to `main`.
-- **Not applied to the live project.** The single deploy path still can't be established: the GitHub integration's deploy setting isn't readable with the available tools (EVAL-052; DR-019, release gate R-9).
-- **Live, read at 12:00 and again at 12:39:** unchanged. It still grants the Phase 1 public write paths, and the catalog test fails there exactly where the migration fixes things (EVAL-048, EVAL-051). Up to 12:36, no external request had reached a data or function endpoint (EVAL-052).
+- **Not applied to the live project yet.** The deployment path is designated: the Supabase connector (DR-024), so release gate R-9 is met. Applying Stage 1 is a separate, authorized run. The earlier "unreadable GitHub setting" blocker rested on a misreading; no GitHub integration has ever been connected (EVAL-060).
+- **Live, read at 12:00, 12:39 and 13:39:** unchanged. It still grants the Phase 1 public write paths, and the catalog test fails there exactly where the migration fixes things (EVAL-048, EVAL-051, EVAL-059). Up to 12:36, no external request had reached a data or function endpoint (EVAL-052).
 - **SEC-007:** disposition decided (DR-023). No function is exposed through the default; the two functions live exposes today hold explicit grants, which M-1 revokes.
 - **Stage 2 controls:** none are built (provenance, visitor text checks, caps, cooldown, URL rendering).
 
@@ -372,5 +372,5 @@ Audit 1's original rating is kept beside the revised one.
 | N1 payload growth | Merged | SEC-003 |
 | N2 zero-gate "Ready" | Deferred product fix | Reconciliation record §13 |
 | N3 destructive integrity suite | Process invariant | I19 |
-| N4 unconfirmed deploy path | Release gate; still open at the Stage 1 release checkpoint (EVAL-052) | R-9, DR-019 |
+| N4 unconfirmed deploy path | Resolved: the connector is the designated single path, and no GitHub integration exists (EVAL-060) | DR-024; R-9 met |
 | N5 route ids beyond 2^53 | Deferred UX | A2 |

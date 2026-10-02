@@ -44,11 +44,12 @@ and this log disagree, this log is authoritative.
 | DR-016 | The database sets visitor identity and evidence dates (D4) | Accepted | **Not yet implemented** |
 | DR-017 | Evidence URLs are https only; visitor URLs are never clickable (D5) | Accepted | Database rule in the repository and verified locally, **not applied to live**; rendering rule is Stage 2 |
 | DR-018 | Sandbox limits: 10 visitor evidence and 20 visitor decisions per gate, 5-minute cooldown (D6) | Accepted | **Not yet implemented** (Stage 2); Stage 1's zero public-write bound is in the repository, not applied to live |
-| DR-019 | One authoritative migration deployment path (D7) | Accepted | **Not yet implemented**; the deploy setting couldn't be read at the release checkpoint (EVAL-052); blocks production deployment (release gate R-9) |
+| DR-019 | One authoritative migration deployment path (D7) | Accepted | Implemented by DR-024: the Supabase connector is the single path, and release gate R-9 is met. No migration applied under it yet |
 | DR-020 | No Supabase Auth at this stage; `authenticated` stays aligned with `anon` | Accepted (its R-8 consequence replaced by DR-022) | In force (nothing to build) |
-| DR-021 | Stage 1 security hardening: one migration, a read-only catalog test, a local behavior test | Accepted | In the repository, pushed (`e74aaaf`, test strengthened in `8a1ad9d`) and verified locally on Postgres 17; **not applied to live** |
+| DR-021 | Stage 1 security hardening: one migration, a read-only catalog test, a local behavior test | Accepted | In the repository, pushed (`e74aaaf`, test strengthened in `8a1ad9d`) and verified locally on Postgres 17; **not applied to live**. It deploys through the connector (DR-024) |
 | DR-022 | Retire release gate R-8 (the Auth settings check); no Auth is an explicit tradeoff | Accepted | In force: documentation only; enforced by catalog checks 13 and 15 |
 | DR-023 | SEC-007 at the Stage 1 release: no default-privilege change; every new function is revoked explicitly | Accepted | Stage 1 part verified locally (no function exposed through the default); the Stage 2 obligation is recorded |
+| DR-024 | The Supabase connector is the single authoritative production migration path | Accepted | Designated. No migration applied under it yet; Stage 1 is the first, and release gate R-2 is pending |
 
 ---
 
@@ -272,6 +273,7 @@ and this log disagree, this log is authoritative.
 - **Consequences:**
   - The `...000100` and `...000200` versions exist only in commit `03a4666` and were never applied to live.
   - Two possible deploy paths (the connector and the GitHub integration) remained a risk (DR-019, release gate R-9).
+    - **Update (DR-024):** the second path never existed; no GitHub integration has ever been connected (see the correction in DR-019). DR-024 makes the connector the single path, and this decision's rename becomes step 6 of its deployment procedure.
 - **Evidence:**
   - EVAL-022: live and repository migrations are byte-identical.
   - EVAL-008: the migration list on live.
@@ -359,9 +361,10 @@ restores the whole seed. **The project owner approved D1 to D7 on 2026-10-02** (
 - **Stage 1** (DR-021) is in the repository and verified locally on Postgres 17: migration `20261002115318_stage1_security_hardening`, plus the catalog and behavior tests.
 - **Stage 1 is not applied to the live project.** The single deploy path couldn't be established, because the GitHub integration's deploy setting is unverified (DR-019, R-9). Live was read again at 12:00. It still has the Phase 1 public write surface, and the new catalog test fails there on exactly the four checks the migration fixes (EVAL-048).
 - **Stage 2:** no sandbox, provenance column, sandbox function, cap or cooldown exists.
+- **Update (deployment-path decision, 14:15):** the "unverified GitHub integration" above rested on a misreading; no GitHub integration has ever been connected (see the correction in DR-019). DR-024 designates the Supabase connector as the single path, so R-9 is met. Stage 1 is still **not applied to live**: that's a separate, authorized deployment run.
 
 **Implementation order** (details in [the reconciliation record](docs/security/2026-10-02-audit-2b-reconcile.md#9-remediation-sequence)):
-- **Stage 1, security hardening:** the read-only catalog test, then migrations M-1 (no public writes), M-2 (https check) and M-3 (default privileges), then verification. Done in the repository and locally; the production deployment is pending R-9.
+- **Stage 1, security hardening:** the read-only catalog test, then migrations M-1 (no public writes), M-2 (https check) and M-3 (default privileges), then verification. Done in the repository and locally. The production deployment is pending: R-9 is met (DR-024), and the deployment is a separate, authorized run.
 - **Stage 2, the sandbox (later, at the start of the gate-sheet phase):** M-4 to M-6 and application items A3 to A9.
 
 ## DR-013: Trust model C: a read-only canonical launch plus a disposable shared sandbox (D1)
@@ -541,9 +544,9 @@ restores the whole seed. **The project owner approved D1 to D7 on 2026-10-02** (
 
 - **Date:** specified at 10:58; approved on 2026-10-02.
 - **Status:** Accepted
-- **Implementation status:** **Not yet implemented.**
+- **Implementation status:** **Implemented by DR-024** (decided at 14:15): the Supabase connector is the single path, and release gate R-9 is met. No migration has been applied under it yet; Stage 1 is the first. The earlier notes below are kept as written, followed by a correction.
   - All migrations so far were applied through the Supabase connector.
-  - The owner reported linking GitHub to the Supabase project. Its deploy settings haven't been verified.
+  - The owner reported linking GitHub to the Supabase project. Its deploy settings haven't been verified. **(A misreading; see the correction below.)**
   - Which mechanism becomes the single path is still to be confirmed.
   - **Update (Stage 1, about 12:05):**
     - The current Supabase documentation says the GitHub integration's "Deploy to production" option applies new migrations when changes reach the production branch. It works on every plan and doesn't need branching (EVAL-037).
@@ -557,6 +560,11 @@ restores the whole seed. **The project owner approved D1 to D7 on 2026-10-02** (
     - That is decision-tree Case C, so production was **not** changed.
     - Pushing `claude/phase1-schema` at 12:40 applied nothing to live: the migration history was unchanged and no new database or API log entries appeared (EVAL-053). So a push to this branch doesn't deploy. Whether a merge to `main` would is unknown.
     - Still blocking. The owner actions above are unchanged. Section 16 of the reconciliation record lists them, with the read-only verification to run after deployment.
+  - **Correction (recorded with DR-024):**
+    - The note "The owner reported linking GitHub to the Supabase project" misread the owner's 09:18 instruction. It said: "Supabase is now linked to this repo. Use that link." and "Apply the migrations to the linked Supabase project". It referred to the Supabase connector made available to the session, which applied migrations 1 and 2 at 09:20 and 09:21. It didn't mention GitHub, and no GitHub integration was connected.
+    - The owner confirmed at 13:54 that Supabase has never been connected to GitHub: the project's GitHub integration page offers "Authorize GitHub" (EVAL-060).
+    - The misreading was this documentation's, not the owner's. It also produced "since before the integration was linked" in EVAL-052 and in section 16 of the reconciliation record, and the GitHub-settings premise of the two updates above and of release gate R-9. Those records keep their wording, with correction notes added.
+  - **Update (DR-024):** implemented. The connector is the single authoritative path. The GitHub integration remains an unused alternative that would need its own decision. Release gate R-9 is met; the instruction to read the integration's deploy settings no longer applies, because no integration exists.
 - **Context:** two mechanisms can apply migrations to the same project: the connector or CLI, and the GitHub integration. Competing paths cause double application and drift (finding N4).
 - **Options considered:** the connector or CLI as the single path; the GitHub integration as the single path; both (rejected).
 - **Decision:**
@@ -629,6 +637,7 @@ restores the whole seed. **The project owner approved D1 to D7 on 2026-10-02** (
     - `8a1ad9d` changed only the behavior test. Five test values that had been written as raw invisible or non-ASCII characters are now escape text (EVAL-055). Eight reject cases were added: line endings, a tab, full-width letters and a lookalike letter, 41 in total (EVAL-054). The migration is unchanged.
     - The local replay passed again: catalog 17 of 17, behavior 24 of 24, fingerprint 12 of 12, integrity 6 of 6 (EVAL-056).
     - Still **not applied to live** (DR-019). SEC-007's disposition is DR-023. Release gate R-8 was retired by DR-022.
+  - **Update (deployment-path decision, 14:15):** the deploy path is now designated (DR-024), so the reason given above no longer applies. Stage 1 will be the first migration applied through the connector under DR-024, in a separately authorized run. After application, the file is renamed to the version Supabase records, with its SQL unchanged (DR-009, R-2). It's still **not applied to live**.
 - **Context:** Phase 2B specified Stage 1 as steps S1 to S6, migrations M-1 to M-3, the catalog tests C-1 to C-14 and the behavior tests B-1 to B-3.
 - **Options considered:**
   - one migration or three
@@ -749,3 +758,81 @@ restores the whole seed. **The project owner approved D1 to D7 on 2026-10-02** (
   - EVAL-040 and EVAL-042: the built-in default on Postgres 17, and check 9 catching it.
   - EVAL-051: live function ACLs; PUBLIC holds EXECUTE on no function.
   - EVAL-056: the Stage 1 build's function ACLs; the migration has 0 functions and 0 GRANT statements.
+
+## DR-024: The Supabase connector is the single authoritative production migration path
+
+- **Date:** decided by the project owner on 2026-10-02 (instruction at 14:15), after the read-only deployment-path audit (13:54 to 14:04, EVAL-060).
+- **Status:** Accepted. Implements DR-019 (D7).
+- **Implementation status:** in force for the next production migration. No migration has been applied under it yet. Stage 1 (`20261002115318_stage1_security_hardening.sql`) is the first, and waits on a separately authorized deployment run (release gate R-2).
+- **Context:**
+  - DR-019 (D7) requires exactly one authoritative path for migrations to reach production. Invariant I20 requires the repository files to match `supabase_migrations`.
+  - **GitHub has never been connected to the Supabase project.**
+    - The owner confirmed this at 13:54 from the project's GitHub integration page, which offers "Authorize GitHub" (EVAL-060).
+    - It matches every observable signal: GitHub wasn't connected at creation (DR-005), the project has no Supabase branches, `main` has never contained `supabase/`, and the logs show no deploy activity (EVAL-052, EVAL-059).
+    - Earlier records said the owner had linked GitHub. That was a misreading of the 09:18 instruction (see the correction in DR-019).
+  - **The connector has applied every production migration.** `20261002092043`, `20261002092141` and `20261002093521` went through it at 09:20, 09:21 and 09:35. Each is stored as one statement whose md5 equals its repository file (EVAL-022, EVAL-059).
+  - **The connector assigns the version.** Its `apply_migration` operation takes a name and the SQL, with no version parameter, and Supabase records the version when the migration is applied (EVAL-059, EVAL-060).
+  - **DR-009 already handles that.** Migrations 1 and 2 were committed as `...000100` and `...000200` (`03a4666`) and renamed to their recorded versions in `9c65e6c`. Migration 3 was committed under its recorded version in `ddadd36`.
+  - **No other mechanism exists.** The Supabase CLI isn't linked and has no credentials here, and the repository has no CI (EVAL-060).
+- **Options considered:**
+  1. **The Supabase connector:** the existing mechanism, behind every production migration so far.
+  2. **The Supabase GitHub integration:** never connected. Adopting it would add a third-party deployment path triggered by merges to `main`, so it would need its own decision.
+  3. **The Supabase CLI** (`supabase db push`), run with the owner's credentials or in CI: neither linked nor configured. It needs credentials or new infrastructure.
+  4. **History-only tools or ad hoc SQL** (`supabase migration repair`, the Management API's upsert without applying, the SQL editor): rejected. They record history without running the migration, or run SQL without recording it.
+- **Decision:** the Supabase connector is the single authoritative production migration path for this project, unless a future decision explicitly replaces it.
+- **Procedure,** for every production migration:
+  1. Author the migration in Git.
+  2. Replay and verify it locally: a fresh Postgres 17 database built from `supabase/tests/local_roles.sql` and every migration.
+  3. Run the read-only production preflight: the migration isn't recorded yet, the recorded history matches the repository, and production is at the expected baseline.
+  4. Apply the exact migration SQL once through the connector: `apply_migration`, with the file's name part as `name` and the file's exact bytes as `query`.
+  5. Read the version Supabase actually recorded.
+  6. Rename the repository file to that recorded version, without changing its SQL contents.
+  7. Verify parity: the recorded version equals the filename, the stored statement's md5 equals the file's, and the migration is recorded exactly once.
+  8. Run the read-only production verification. For Stage 1 it's listed in section 16 of the reconciliation record.
+  9. Commit and push the renamed file and the evidence.
+
+  **The rename in step 6 is a post-application normalization of the repository file name.** It doesn't modify production SQL or the migration's contents.
+- **Safety:**
+  - Applying a migration to production requires the owner's explicit authorization for that deployment run.
+  - The connector is the only production migration path.
+  - GitHub isn't a production deployment path, and it shouldn't be connected merely to deploy this project.
+  - History-only manipulation, such as `supabase migration repair`, isn't a deployment mechanism.
+  - Direct ad hoc SQL on production isn't an alternative migration path.
+  - No service-role key or other secret credential is placed in the repository (invariant I1, DR-011).
+- **How I20 applies to a connector deployment:**
+  - **Before deployment:** the authored filename may carry the timestamp from when the migration was created.
+  - **During deployment:** Supabase assigns the production version.
+  - **After deployment:** the repository file is renamed to the production-recorded version, with its contents unchanged.
+  - **The invariant:** once that rename is committed, the repository and production agree on version, contents and order. I20 is checked then. The authoring timestamp isn't part of the invariant, and the migration isn't required to keep it.
+- **Rationale:**
+  - It's the only mechanism that exists, and it has deployed all three production migrations with exact byte parity.
+  - It satisfies the existing records as written: one path (DR-019), recorded versions in the repository (DR-009), and R-2's "repository files renamed to the recorded versions".
+  - It needs no new infrastructure, access grant or credential.
+- **Assumptions:**
+  - The data stays synthetic, and the project has a single maintainer.
+  - The connector stays available under the owner's authorization.
+- **Consequences:**
+  - **Positive:**
+    - no new infrastructure
+    - no new production credentials
+    - consistent with the existing migration history and with how the project has been deployed
+    - explicit single-path governance; release gate R-9 is met
+  - **Tradeoffs:**
+    - Deployment is manual.
+    - Supabase assigns the migration version at application time, so an authored version is provisional until deployment.
+    - The repository filename is normalized after application. Until that commit lands, the repository and production briefly disagree on the version.
+    - The process depends on explicit operator authorization.
+    - There's no Git-triggered automatic deployment.
+    - The connector doesn't pass the Management API's idempotency key (none of the three history rows has one, EVAL-060), so the preflight in step 3 is what prevents a double application.
+- **Revisit if:**
+  - multiple contributors require automated deployment
+  - Git-triggered deployment becomes a project requirement
+  - the project needs stable authored migration versions, independent of application time
+  - a CI/CD pipeline becomes justified
+  - operational scale makes manual migration deployment inappropriate
+
+  Any replacement needs its own decision, and must retire the connector as a write path before it starts, so that two mechanisms never coexist. Because every file carries its recorded version, a later switch re-runs nothing.
+- **Evidence:**
+  - EVAL-060: the deployment-path audit: the owner's confirmation, the 09:18 instruction's wording, the connector's contract, and the CLI and CI state.
+  - EVAL-022 and EVAL-059: production migration history and byte parity.
+  - DR-009 and the repository history (`03a4666`, `9c65e6c`, `ddadd36`).

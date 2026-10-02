@@ -95,6 +95,9 @@ migrations (`supabase/tests/local_roles.sql` first, for the `anon` and `authenti
 | EVAL-056 | 12:42 | Closeout: local replay after the test change; SEC-007 audit | local | 17/17, 24/24 (41/41), 12/12, 6/6 | Reproducible from repo |
 | EVAL-057 | 12:43 | Closeout: dedicated secret scanner over the full history | static | No real secrets; gitleaks blocked; GitHub scanning unavailable | Recorded only |
 | EVAL-058 | 13:00 | Closeout: tests, typecheck, build, fresh replay, scans, hygiene and Markdown checks | local, build, static, live read-only | 11/11; 17/17, 24/24, 12/12, 6/6; scans clean; live still 3 migrations | Tests and replay reproducible from repo; scans recorded only |
+| EVAL-059 | 13:38 | Deployment preflight: live read-only re-check; connector capability | live read-only, docs | Unchanged: 3 migrations, catalog 13 of 17, fingerprint = EVAL-023. `apply_migration` takes no version; nothing deployed | Catalog and fingerprint parts reproducible from repo |
+| EVAL-060 | 13:58 | Deployment-path audit; correction of the GitHub-link reading | static, live read-only, docs | No GitHub integration ever connected (owner-verified); the connector is the only mechanism; led to DR-024 | Recorded only |
+| EVAL-061 | 14:23 | DR-024 commit: fresh replay, tests, hygiene, Markdown and secret checks | local, build, static | 17/17, 24/24, 12/12, 6/6; 11/11; checks clean | Tests and replay reproducible from repo; scans recorded only |
 
 ---
 
@@ -1032,6 +1035,7 @@ Starting commit: `e74aaafdb20e23258852cedfc5458a7ed98e79cb`, clean, 2 commits ah
     - `main` (`0e737dc`, 09:02) hasn't changed since before the integration was linked (about 09:18). So the absence of deploy activity can't distinguish "Deploy to production" on from off.
 - **Conclusion:** the single deploy path required by DR-019 **can't be established** with the available tooling: decision-tree Case C. Production was not mutated.
 - **Reproducibility:** recorded only.
+- **Correction (added with DR-024; see EVAL-060):** no GitHub integration was ever linked. "Since before the integration was linked (about 09:18)" misread the owner's 09:18 instruction, which referred to the Supabase connector. The observations above stand. The conclusion's premise, that an integration might deploy migrations, didn't hold.
 
 ### EVAL-053: Push and post-push live check
 - **Date:** 12:40:04 (push), checks at 12:40:12, 12:43:03 and 12:46:40.
@@ -1137,12 +1141,96 @@ Starting commit: `e74aaafdb20e23258852cedfc5458a7ed98e79cb`, clean, 2 commits ah
 - **Reproducibility:** tests, typecheck, build and the replay are reproducible from repo; the scans are recorded only.
 - **Limitations:** this entry was written after the run. The static checks (hygiene, Markdown, diff scan, `git diff --check`) were re-run on the final files just before the commit, with the same results.
 
+## Stage 1 deployment-path decision (2026-10-02, 13:33 to 14:25)
+
+Starting commit: `548701bd5993eb3efc9a90a92498c62cede2e78e`, clean, in sync with `origin`.
+**Nothing in this section wrote to the live project.**
+
+### EVAL-059: Deployment preflight: live read-only re-check and connector capability
+- **Date:** 13:38 to 13:42. It was the start of an authorized attempt to deploy Stage 1; the run stopped before any production change.
+- **Target:** live read-only, and docs.
+- **Run:**
+  - `get_project`, `list_migrations`, `list_branches` and `get_organization`.
+  - The query bodies of `security_catalog.sql` and `fingerprint.sql`.
+  - One read of function ACLs, policies, constraints, row counts, sequences, Auth counts, default ACLs and the migration history.
+  - The advisors, and the logs since 13:05.
+  - The `apply_migration` tool schema, and the Management API documentation for migrations.
+- **Result:**
+  - **Project:** `ACTIVE_HEALTHY`, Postgres `17.11.0.002`, no branches, free plan.
+  - **Migrations:** the same three, each stored as one statement whose md5 equals its repository file. `20261002115318` isn't recorded.
+  - **Catalog test:** 13 of 17, failing exactly checks 3, 9, 14 and 15, with the same detail as EVAL-048 and EVAL-051.
+  - **Fingerprint:** all 12 parts equal EVAL-023, compared as full hashes.
+  - **Function ACLs:** both application functions are `{postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}`; `rls_auto_enable()` is owner-only. PUBLIC holds EXECUTE on no function.
+  - **Policies and constraints:** six "Public read" policies plus "Public append". `evidence_source_https` doesn't exist yet.
+  - **Seed:** `launches=1 gates=16 passed=6 evidence=10 evidence_with_source=0 risks=6 decisions=4 stages=3`. Every sequence is at its seed value.
+  - **Auth:** 0 users, 0 identities, 0 anonymous users. Nothing in `public` refers to `auth.*`.
+  - **Advisors:** 0028 and 0029 list `reset_demo_data` and `set_gate_status`; performance is INFO only.
+  - **Logs since 13:05:** only Supabase management-API health and readiness checks and one OpenAPI root fetch (13:30). One read query of this run failed at planning at 13:40 (a `"char"` concatenation error) and changed nothing.
+  - **Connector capability:** `apply_migration` accepts `project_id`, `name` and `query` only. The Management API's apply endpoint documents an optional `Idempotency-Key`, which the tool doesn't expose.
+- **Conclusion at the time:** the run stopped without deploying. The GitHub integration's state was still believed unknown (corrected in EVAL-060). The connector also can't record the authored version `20261002115318`, which that run's instructions required. Production wasn't changed.
+- **Reproducibility:** the catalog and fingerprint parts are reproducible from repo, read-only; the rest is recorded only.
+
+### EVAL-060: Deployment-path audit; correction of the GitHub-link reading
+- **Date:** 13:58 to 14:04 (instruction at 13:54).
+- **Target:** static (repository and session record), live read-only, docs, and GitHub read-only.
+- **Owner statement (13:54):** Supabase has never been connected to GitHub. The project's GitHub integration page offers "Authorize GitHub": an offer to create an integration, not evidence of one.
+- **Result:**
+  - **The 09:18 instruction, in full:** "Supabase is now linked to this repo. Use that link." It goes on: "Apply the migrations to the linked Supabase project". It refers to the Supabase connector made available to the session, and doesn't mention GitHub. Migrations 1 and 2 were applied through the connector at 09:20:43 and 09:21:41.
+  - **The misreading:**
+    - DR-019 recorded it as "The owner reported linking GitHub to the Supabase project". EVAL-052 and section 16 of the reconciliation record built on it ("since before the integration was linked").
+    - The misreading was this documentation's, not the owner's. It made release gate R-9 depend on a GitHub setting that doesn't exist.
+  - **Consistent evidence:**
+    - GitHub wasn't connected at creation (DR-005), and the project has no Supabase branches.
+    - `main` (`0e737dc`) holds only `README.md` and has never contained `supabase/`.
+    - No log shows deploy activity (EVAL-052, EVAL-059).
+  - **Connector precedent:** all three production migrations went through the connector. Migrations 1 and 2 were committed as `...000100` and `...000200` (`03a4666`) and renamed to their recorded versions in `9c65e6c`. Migration 3 was committed under its recorded version in `ddadd36`.
+  - **How the connector records a migration** (`supabase_migrations.schema_migrations`, read-only at 14:01):
+    - `version` is the primary key; the other columns are `name`, `statements`, `rollback`, `created_by` and `idempotency_key` (UNIQUE).
+    - All three rows have `created_by` set and no idempotency key.
+    - The version is assigned when the migration is applied, consistent with DR-009.
+  - **Supabase CLI:** a scratch install (2.119.0) used once, for `migration new`.
+    - Not linked: no `supabase/config.toml` or `.temp/project-ref`.
+    - No access token, and no database URL or password.
+    - `db push` needs `--linked`, `--db-url`, or `--project-ref` with `--password`. `migration repair` changes only the history table.
+  - **CI and GitHub:** no `.github/` on any branch, and `package.json` has no deploy script. None of the three GitHub branches is protected.
+  - **Documentation:** the GitHub integration's "Deploy to production" applies new migrations on a push or merge to the production branch, on every plan. `db push` "runs only the ones not yet applied", matched by version. `migration repair` "updates the tracking table only".
+  - **Side effect:** the CLI's help commands, run from the repository root, wrote an empty version-check cache, `supabase/.temp/cli-latest`. It was deleted at 14:04 and never committed.
+- **Conclusion:**
+  - The connector is the only deployment mechanism that exists, and the one the records already accommodate (DR-019's first option, DR-009, and R-2's rename).
+  - Designating it was proposed, and the owner approved it at 14:15 (DR-024).
+  - Production wasn't changed, and Stage 1 remains pending deployment.
+- **Reproducibility:** recorded only.
+
+### EVAL-061: DR-024 commit: fresh replay, tests, hygiene, Markdown and secret checks
+- **Date:** 14:23 to 14:25
+- **Commit:** the working tree committed next as the DR-024 commit, on top of `548701b`. Documentation only.
+- **Target:** local (a fresh Postgres 17.10 database, `lrc_dr024`, dropped afterwards), build, and static. This run made no call to the live project.
+- **Result:**
+  - **Migration integrity:**
+    - `supabase/migrations/` is unchanged since `e74aaaf`, in names and contents, and nothing under `supabase/` changed in this commit.
+    - The Stage 1 file is still `20261002115318_stage1_security_hardening.sql`: md5 `f66a638dfb93554ad4f1a2bac0826304`, 2205 bytes.
+    - The three applied files keep the md5s production stores (`2d4cf41f...`, `d3dafe0c...`, `4842aef7...`; EVAL-059).
+  - **Fresh local replay** (`local_roles.sql` plus all four migrations; the test files are byte-identical to EVAL-058):
+    - Catalog test: 17 of 17, read-only.
+    - Behavior test: 24 of 24. 12 of 12 accepted; 41 of 41 rejected by `evidence_source_https`.
+    - Fingerprint: all 12 parts equal EVAL-045.
+    - Integrity suite: 6 of 6, and `seed_data` is unchanged after its reset.
+  - **Unit tests:** `Test Files 3 passed (3)`, `Tests 11 passed (11)`.
+  - **Typecheck:** exit 0.
+  - **Build:** `npm run build` exit 0, `✓ built in 629ms`.
+  - **Hygiene check** (EVAL-055's check) over every tracked file except `package-lock.json`: 0 flagged characters in 47 files.
+  - **Markdown structure** (fences, table column counts, relative links and anchors, trailing whitespace, em dashes): 0 problems in 8 files, and no em dashes.
+  - **Outgoing diff** (`origin/claude/phase1-schema` to the working tree): detect-secrets found 0; `git diff --check` is clean.
+  - **Pattern scan of tracked files:** no project reference, `*.supabase.co` host, Supabase key format, JWT, connection string, private key, service-role reference or model identifier, and no Supabase CLI artifact.
+  - **Untracked or generated files:** none, apart from the ignored `dist/` and `node_modules/`.
+- **Reproducibility:** the replay, tests, typecheck and build are reproducible from repo; the scans are recorded only.
+
 ## Not run (don't claim these)
 
-This list reflects the state at the Stage 1 release checkpoint (about 13:10).
+This list reflects the state after the deployment-path decision (about 14:25).
 
-- **Production deployment of Stage 1:** the migration was **not** applied to live, so live hasn't been verified after it. The single deploy path couldn't be established (EVAL-052, Case C), so production was deliberately left unchanged. On live, the catalog test passing 17 of 17, the fingerprint matching EVAL-045, and the 0028/0029 advisor lints clearing are expected but **unverified**.
-- **GitHub integration settings:** not readable with the available tools (EVAL-052). Whether "Deploy to production" is on, and which branch and directory it uses, is unknown.
+- **Production deployment of Stage 1:** the migration was **not** applied to live, so live hasn't been verified after it. The deployment path is designated (DR-024), and the deployment is a separate, authorized run. On live, the catalog test passing 17 of 17, the fingerprint matching EVAL-045, and the 0028/0029 advisor lints clearing are expected but **unverified**.
+- **GitHub integration settings:** not applicable. No GitHub integration has ever been connected (EVAL-060). The earlier entry here assumed one might exist.
 - **Browser:** the app loaded in a browser against the **live** project. The live publishable key was never retrieved (DR-011).
 - **CI:** none exists in this repository.
 - **Test suites:**

@@ -10,6 +10,8 @@ steps, the expected result, what is true **today**, and the specified tests that
 
 **Stage 1 release checkpoint (about 13:10):** Stage 1 is pushed but still not applied to live, because the single deploy path couldn't be established (DR-019, EVAL-052). Live was re-read at 12:39 and is unchanged (EVAL-051), so every "not applied to live" label below still holds.
 
+**Deployment-path decision (about 14:25):** the path is now designated (DR-024: the Supabase connector), but Stage 1 still isn't applied; that's a separate, authorized run. Live was re-read at 13:39 and is unchanged (EVAL-059), so every "not applied to live" label below still holds.
+
 **Rules for every behavior scenario** (Phase 2B invariant I19):
 - Run only against a local or ephemeral database built from this repository, never against production.
 - Run each step as `anon` **and** as `authenticated`, inside a transaction that rolls back.
@@ -39,7 +41,7 @@ Evidence IDs (EVAL-NNN) are in [`EVALUATION_LOG.md`](EVALUATION_LOG.md).
   - Steps 1 to 4 are denied with 42501 for both roles, and the seed is unchanged (`stage1_behavior.sql`, EVAL-043).
   - Catalog checks 3 to 9 pass (EVAL-041).
   - Over HTTP the writes return 401/403 (EVAL-046).
-  - Live still allows steps 1 to 3 (EVAL-048; unchanged at 12:39, EVAL-051).
+  - Live still allows steps 1 to 3 (EVAL-048; unchanged at 12:39, EVAL-051, and 13:39, EVAL-059).
 - **Becomes true at:** Stage 1 (migration M-1). Stage 2 extends it to the sandbox functions.
 - **Invariants:** I3, I4, I7. **Decision:** DR-013.
 - **Setup:** an ephemeral database from the repository migrations plus the Stage 1 migrations, at the seed.
@@ -63,7 +65,7 @@ Evidence IDs (EVAL-NNN) are in [`EVALUATION_LOG.md`](EVALUATION_LOG.md).
 - **Stage 1 status:** Implemented in the repository and verified locally; not applied to live.
   - Step 1 is denied with 42501 (behavior checks 9 and 17; HTTP 401/403).
   - The owner path still works: the integrity suite's check 5 passed (EVAL-044).
-  - Live still allows step 1 (EVAL-048, EVAL-049; unchanged at 12:39, EVAL-051).
+  - Live still allows step 1 (EVAL-048, EVAL-049; unchanged at 12:39, EVAL-051, and 13:39, EVAL-059).
 - **Becomes true at:** Stage 1 (M-1). The sandbox reset follows in Stage 2.
 - **Invariants:** I4, I7, I13. **Decision:** DR-014.
 - **Steps:**
