@@ -87,6 +87,14 @@ migrations (`supabase/tests/local_roles.sql` first, for the `anon` and `authenti
 | EVAL-048 | 12:00 | Stage 1: catalog test against live, before any migration | live read-only | 13 of 17; fails 3, 9, 14, 15 | Reproducible from repo |
 | EVAL-049 | 12:00 | Stage 1: Supabase advisors | live read-only | 0028/0029 still listed; performance INFO only | Recorded only |
 | EVAL-050 | 12:09 | Stage 1: final replay of the committed files; secret and hygiene scan | local, static | 17/17, 24/24, 12/12, 6/6; no secrets | Replay reproducible; scan recorded only |
+| EVAL-051 | 12:36 | Closeout: live read-only state re-check | live read-only | Unchanged since EVAL-048: catalog 13 of 17, fingerprint = EVAL-023 | Catalog part reproducible from repo |
+| EVAL-052 | 12:36 | Closeout: deployment-path evidence | live read-only, docs | Deploy setting not inspectable: Case C | Recorded only |
+| EVAL-053 | 12:40 | Closeout: push of `ef61176` and `e74aaaf`; post-push live check | static, live read-only | Fast-forward; no deploy triggered | Recorded only |
+| EVAL-054 | 12:41 | Closeout: https rule bypass probe | local | Every bypass rejected; 3 inert leniencies | Recorded only (8 cases now in the test) |
+| EVAL-055 | 12:41 | Closeout: raw invisible and bidi characters in two committed files | static | Found and fixed (`8a1ad9d`) | Recorded only (command quoted) |
+| EVAL-056 | 12:42 | Closeout: local replay after the test change; SEC-007 audit | local | 17/17, 24/24 (41/41), 12/12, 6/6 | Reproducible from repo |
+| EVAL-057 | 12:43 | Closeout: dedicated secret scanner over the full history | static | No real secrets; gitleaks blocked; GitHub scanning unavailable | Recorded only |
+| EVAL-058 | 13:00 | Closeout: tests, typecheck, build, fresh replay, scans, hygiene and Markdown checks | local, build, static, live read-only | 11/11; 17/17, 24/24, 12/12, 6/6; scans clean; live still 3 migrations | Tests and replay reproducible from repo; scans recorded only |
 
 ---
 
@@ -980,23 +988,175 @@ build container. Live uses 17.11 with ICU. **Nothing in this section wrote to th
 - **Reproducibility:** the replay is reproducible from repo; the scan is recorded only.
 - **Limitations:** pattern-based, not gitleaks.
 
+## Stage 1 closeout: release checkpoint (2026-10-02, 12:36 to 13:10)
+
+Starting commit: `e74aaafdb20e23258852cedfc5458a7ed98e79cb`, clean, 2 commits ahead of `origin`.
+**Nothing in this section wrote to the live project.**
+
+### EVAL-051: Live read-only state re-check
+- **Date:** 12:36 to 12:39
+- **Target:** live read-only: `get_project`, `list_migrations`, `list_branches`, `get_organization`, three catalog SELECTs, and the advisors.
+- **Result:**
+  - **Project:** `ACTIVE_HEALTHY`, Postgres `17.11.0.002`.
+  - **Migrations:** the same three versions. Each stored statement's md5 still equals the repository file: `2d4cf41f…`, `d3dafe0c…`, `4842aef7…`.
+  - **Branches:** none.
+  - **Organization plan:** free.
+  - **Catalog test** (`security_catalog.sql` query body): **13 of 17**, failing exactly checks 3, 9, 14 and 15 with the same detail as EVAL-048.
+  - **Fingerprint** (`fingerprint.sql` query body): **identical to EVAL-023, 12 of 12**, `seed_data` `dc85e31b…` included. Live still differs from the Stage 1 build (EVAL-045) in exactly constraints, policies, column_write_grants and functions.
+  - **Function ACLs:**
+    - `reset_demo_data()` and `set_gate_status(...)`: `{postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}`.
+    - `rls_auto_enable()`: `{postgres=X/postgres}`.
+    - **PUBLIC holds EXECUTE on no function in `public`.**
+  - **Auth:** 0 users, 0 identities, 0 anonymous users. No policy or function in `public` references `auth.*`.
+  - **Seed:** `launches=1 gates=16 passed=6 evidence=10 evidence_with_source=0 risks=6 decisions=4 stages=3`. Every identity sequence is still at its seed value, so nothing has been written since the seed.
+  - **Advisors:**
+    - Security: lints 0028 and 0029, 2 findings each (`reset_demo_data`, `set_gate_status`).
+    - Performance: INFO only (3 unindexed foreign keys, 2 unused indexes).
+- **Reproducibility:** the catalog and fingerprint parts are reproducible from repo, read-only; the rest is recorded only.
+
+### EVAL-052: Deployment-path evidence
+- **Date:** 12:36 to 12:37
+- **Target:** live read-only (logs, organization) and GitHub (through the connected tools).
+- **Result:**
+  - **No tool reads the GitHub integration settings.** The Supabase tools available expose projects, branches, migrations, logs and advisors.
+  - **Branches:** none. The organization is on the free plan, so branching isn't available, but "Deploy to production" works on every plan (EVAL-037).
+  - **Logs:**
+    - The 24-hour window covers the project's whole life; it was created at 02:34.
+    - Sources present: `auth_logs`, `edge_logs`, `pgbouncer_logs`, `postgres_logs`, `postgrest_logs`, `realtime_logs`, `storage_logs`. None is a deploy or branch-action source.
+    - The 34 gateway (`edge_logs`) entries come only from Supabase's management API: readiness and health checks, network-ban lookups, and one `GET /rest/v1/` at 09:50:57, which matches the type generation in EVAL-011.
+    - **No external request reached any data or RPC endpoint.**
+  - **GitHub:**
+    - 0 Actions workflows.
+    - No branch protection on `main`.
+    - Commit data carries no check or integration metadata through the available tools.
+    - `main` (`0e737dc`, 09:02) hasn't changed since before the integration was linked (about 09:18). So the absence of deploy activity can't distinguish "Deploy to production" on from off.
+- **Conclusion:** the single deploy path required by DR-019 **can't be established** with the available tooling: decision-tree Case C. Production was not mutated.
+- **Reproducibility:** recorded only.
+
+### EVAL-053: Push and post-push live check
+- **Date:** 12:40:04 (push), checks at 12:40:12, 12:43:03 and 12:46:40.
+- **Target:** static (git), and live read-only.
+- **Run:** `git push -u origin claude/phase1-schema`, with no force.
+- **Result:**
+  - `cb27437..e74aaaf claude/phase1-schema -> claude/phase1-schema`.
+  - Then `0 0` ahead/behind. `git ls-remote` shows `e74aaaf` on `claude/phase1-schema` and `0e737dc` on `main`, unchanged.
+  - Live migration history was unchanged at every check.
+  - `edge_logs`, `postgres_logs`, `postgrest_logs` and `auth_logs` have **no entries since 12:40** (checked at 12:43 and 12:46).
+  - So a push to this branch doesn't deploy. That says nothing about `main`.
+- **Reproducibility:** recorded only.
+
+### EVAL-054: https rule bypass probe
+- **Date:** 12:41
+- **Target:** local: a fresh Postgres 17.10 build with the Stage 1 migration, inside a rolled-back transaction.
+- **Result:**
+
+  | Attempt | Outcome |
+  |---|---|
+  | Trailing LF, CR or CRLF after a valid URL | Rejected by `evidence_source_https` |
+  | LF right after the host; leading LF | Rejected |
+  | Tab inside `://` | Rejected |
+  | Full-width scheme letters (U+FF48 and so on) | Rejected |
+  | Cyrillic lookalike letter (U+0430) in the host | Rejected |
+  | IPv6 literal host (`https://[2001:db8::1]/`) | Rejected (IPv6 literals aren't supported) |
+  | A 64-character host label; a backtick in the path | Rejected |
+  | `https://example.com/%0a` (a percent-encoded newline) | **Accepted** (inert escaped text) |
+  | `https://example.com:99999/` (port above 65535) | **Accepted** (lenient port syntax) |
+  | `https://example.com/javascript:alert(1)` | **Accepted** (the scheme is https; the path text is inert) |
+
+  - Postgres's `$` doesn't match before a trailing newline, so the classic anchoring bypass doesn't apply.
+  - The three accepted values are documented leniencies, not bypasses. The rule guarantees an https scheme and a clean character set; it doesn't promise that a URL is reachable or meaningful. Visitor URLs are never rendered as links (DR-017).
+  - The constraint as stored (`pg_get_constraintdef`) matches the migration.
+- **Reproducibility:** recorded only. The first eight attempts are now reject cases in `stage1_behavior.sql` (EVAL-056).
+
+### EVAL-055: Raw invisible and bidi characters in two committed files
+- **Date:** 12:41 to 12:42
+- **Target:** static: every tracked text file except `package-lock.json`.
+- **Run:** a Python check that flags C0 and C1 controls (other than tab and newline), DEL, Unicode format characters (category Cf), line and paragraph separators, and every space other than U+0020.
+- **Result:**
+  - `supabase/tests/stage1_behavior.sql` held raw U+00A0, U+200B, U+202E and U+2066 (and a raw U+00FC) where `E''` escape text was intended.
+  - The reconciliation record's M-4 sketch held raw U+202A, U+202E, U+2066 and U+2069.
+  - The test behaved correctly, because a raw character and its escape produce the same string. But hidden bidirectional text in committed source is a Trojan-Source-style review hazard.
+  - **Cause:** the escape sequences were decoded into raw characters when the files were written in the earlier sessions.
+  - **Earlier check missed it:** the earlier Markdown checks looked for em dashes and whitespace only.
+  - **Fix (`8a1ad9d`):** both files now hold escape text, and `stage1_behavior.sql` is pure ASCII. The same check over all tracked files now finds none (EVAL-058).
+- **Reproducibility:** recorded only; the check is described above.
+
+### EVAL-056: Local replay after the test change; SEC-007 audit
+- **Date:** 12:42 to 12:43
+- **Target:** local: a fresh PG17 database built from `local_roles.sql` plus all four migrations.
+- **Result:**
+  - **Catalog test:** 17 of 17 (read-only).
+  - **Behavior test:** 24 of 24. Check 22: 12 of 12 accepted. **Check 23: 41 of 41 rejected by `evidence_source_https`**, the eight new cases included.
+  - **Fingerprint:** identical to EVAL-045 (12 of 12).
+  - **Integrity suite:** 6 of 6.
+  - **On a pre-Stage-1 build:** the eight new cases are accepted, and the run is 16 of 24, so they exercise the constraint itself.
+  - **SEC-007 audit** on the Stage 1 build:
+    - `reset_demo_data()` and `set_gate_status(...)` both have ACL `{postgres=X/postgres}`. PUBLIC, `anon` and `authenticated` can't execute them.
+    - The Stage 1 migration creates **0** functions and contains **0** GRANT statements.
+  - `stage1_behavior.sql` md5 at replay: `c17adfd14ae692a9650223fa5ee612ec`.
+- **Reproducibility:** reproducible from repo.
+
+### EVAL-057: Dedicated secret scanner over the full history
+- **Date:** 12:43 to 12:45
+- **Target:** static: every commit on every ref (11 commits, 6 refs) as per-commit patches, plus the working-tree diff. `package-lock.json` was excluded; its integrity hashes are public package checksums.
+- **Run:**
+  - **gitleaks:** the download was **blocked** by the session's network policy (third-party GitHub repositories aren't reachable).
+  - **detect-secrets 1.5.0** (Yelp, from PyPI into the scratch directory; 27 plugins): `detect_secrets scan --all-files`.
+  - **GitHub secret scanning:** called on the client, the env template and the new test lines. **Unavailable:** "Repository does not have GitHub Advanced Security enabled."
+- **Result:** no real secrets. detect-secrets reported 8 findings:
+  - **7 Hex High Entropy:** all documented md5 fingerprints or git SHAs.
+  - **1 Basic Auth:** the deliberately fake `https://user:****@example.com/` reject case in `stage1_behavior.sql`. The 4-character placeholder password is masked here.
+  - Findings were classified by script, without printing values.
+- **Reproducibility:** recorded only.
+- **Limitations:** the bundle wasn't rescanned. No application code changed since EVAL-019 apart from one comment.
+
+### EVAL-058: Tests, typecheck, build, fresh replay, scans, hygiene and Markdown checks
+- **Date:** 13:00 to 13:04
+- **Commit:** the working tree committed next as the checkpoint commit, on top of `8a1ad9d`.
+- **Target:** local (a fresh Postgres 17.10 database, `lrc_checkpoint`), build, static, and one live read-only call.
+- **Result:**
+  - **Unit tests:** `Test Files 3 passed (3)`, `Tests 11 passed (11)`.
+  - **Typecheck:** exit 0.
+  - **Build:** `npm run build` exit 0, `✓ built in 520ms`. Lint: no lint script is configured.
+  - **Fresh local replay:** `local_roles.sql` plus all four migrations. Every SQL file is byte-identical to EVAL-056 (same md5s).
+    - Catalog test: 17 of 17, read-only.
+    - Behavior test: 24 of 24. 12 of 12 accepted; 41 of 41 rejected by `evidence_source_https`.
+    - Fingerprint: identical to EVAL-045 (12 of 12).
+    - Integrity suite: 6 of 6, and `seed_data` is unchanged after its reset.
+  - **Bundle secret scan:** a build with placeholder values, made in the scratch directory.
+    - 0 sourcemaps.
+    - No Supabase key formats, JWT-shaped tokens, connection strings or project reference.
+    - detect-secrets 1.5.0 reported 3 "Secret Keyword" findings, all false positives. Each flagged "value" is a span of minified code between template-literal backticks, 1,181 to 118,964 characters long, after a word such as `password`. They were classified by script, without printing values.
+  - **Outgoing diff** (`origin/claude/phase1-schema` to the working tree): detect-secrets found 0; `git diff --check` is clean.
+  - **Hygiene check** (EVAL-055's check) over all 47 tracked files except `package-lock.json`: 0 flagged characters.
+  - **Markdown structure** over the 8 tracked Markdown files: 0 problems.
+    - Checked: balanced fences, the header's column count on every table row, every relative link and anchor, trailing whitespace, and em dashes.
+    - The checker was mutation-tested first. An extra table cell, a broken link, a missing anchor and a zero-width space were each flagged, then reverted.
+  - **Pattern scan of tracked files:** no project reference, `*.supabase.co` host, Supabase key format, JWT, connection string, private key or model identifier. The only CLI-artifact matches are two mentions in this log.
+  - **Live, read-only (13:03):** `list_migrations` still returns the same three versions. Nothing was deployed.
+- **Reproducibility:** tests, typecheck, build and the replay are reproducible from repo; the scans are recorded only.
+- **Limitations:** this entry was written after the run. The static checks (hygiene, Markdown, diff scan, `git diff --check`) were re-run on the final files just before the commit, with the same results.
+
 ## Not run (don't claim these)
 
-This list reflects the state after Stage 1 (about 12:05).
+This list reflects the state at the Stage 1 release checkpoint (about 13:10).
 
-- **Production deployment of Stage 1:** the migration was **not** applied to live, so live hasn't been verified after it. The catalog test passing 17 of 17 on live, and the 0028/0029 advisor lints clearing, are expected but **unverified**.
+- **Production deployment of Stage 1:** the migration was **not** applied to live, so live hasn't been verified after it. The single deploy path couldn't be established (EVAL-052, Case C), so production was deliberately left unchanged. On live, the catalog test passing 17 of 17, the fingerprint matching EVAL-045, and the 0028/0029 advisor lints clearing are expected but **unverified**.
+- **GitHub integration settings:** not readable with the available tools (EVAL-052). Whether "Deploy to production" is on, and which branch and directory it uses, is unknown.
 - **Browser:** the app loaded in a browser against the **live** project. The live publishable key was never retrieved (DR-011).
 - **CI:** none exists in this repository.
 - **Test suites:**
   - A committed Playwright or end-to-end suite. The scripts under `artifacts/` are preserved evidence, not a suite. The Stage 1 HTTP check (EVAL-046) was ad hoc.
   - **Now committed:** catalog tests C-1 to C-10 and C-12 (as `security_catalog.sql` checks 1 to 17), and behavior tests B-1 to B-3 (`stage1_behavior.sql`).
   - **Still not scripts:** C-11 (migration parity; EVAL-022 has the query), C-13 (advisor), C-14 and B-4 (Stage 2).
-- **Secret scanning:** gitleaks, or any dedicated secret scanner.
+- **Secret scanning:**
+  - detect-secrets ran over the full history (EVAL-057) and the bundle (EVAL-058).
+  - gitleaks: not run. Its download was blocked by the session's network policy.
+  - GitHub secret scanning: unavailable, because GitHub Advanced Security isn't enabled on the repository.
 - **Platform probing:**
   - load, rate-limit or request-size tests against the live API
-  - reading the Auth settings
+  - reading the Auth settings (no longer a release gate, DR-022, but still unread)
   - whether the OpenAPI root is served to the publishable key
-  - reading the GitHub integration settings
 - **Deployment:** hosting, TLS or security-header tests. Nothing is deployed.
 - **Postgres 17 on live:**
   - MAINTAIN and default-privilege behavior was verified on a local 17.10 build (EVAL-040), and live's default ACL was read (EVAL-036).

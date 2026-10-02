@@ -8,6 +8,8 @@ steps, the expected result, what is true **today**, and the specified tests that
 - **Specification / future regression scenario:** the expected behavior is **not** true yet, or no test exists yet. It describes what Stage 1 or Stage 2 must make true. Nothing here should be read as a passing test.
 - **Implemented in the repository and verified locally; not applied to live:** (added with Stage 1) the change and its committed tests exist and pass on a local Postgres 17 build, but **the live project doesn't have the change yet** (DR-021, DR-019). On live, the "Today" behavior still applies.
 
+**Stage 1 release checkpoint (about 13:10):** Stage 1 is pushed but still not applied to live, because the single deploy path couldn't be established (DR-019, EVAL-052). Live was re-read at 12:39 and is unchanged (EVAL-051), so every "not applied to live" label below still holds.
+
 **Rules for every behavior scenario** (Phase 2B invariant I19):
 - Run only against a local or ephemeral database built from this repository, never against production.
 - Run each step as `anon` **and** as `authenticated`, inside a transaction that rolls back.
@@ -26,7 +28,7 @@ Evidence IDs (EVAL-NNN) are in [`EVALUATION_LOG.md`](EVALUATION_LOG.md).
 | E | Waived requires waiver text, and the text survives the transition | Implemented rule, current check exists (Stage 2 part is a specification) | DR-008 |
 | F | Visitor provenance is never confused with canonical evidence | Specification / future regression scenario | SEC-001, SEC-004 |
 | G | Unsafe evidence URLs are rejected | Database rule: Implemented in the repository and verified locally; not applied to live. Rendering rule: specification | SEC-005 |
-| H | New tables and the two API roles stay closed by default | Implemented in the repository and verified locally; not applied to live (tables). Functions: open finding SEC-007 | SEC-006 |
+| H | New tables and the two API roles stay closed by default | Implemented in the repository and verified locally; not applied to live (tables). Functions: open finding SEC-007, disposition DR-023 | SEC-006 |
 
 ---
 
@@ -37,7 +39,7 @@ Evidence IDs (EVAL-NNN) are in [`EVALUATION_LOG.md`](EVALUATION_LOG.md).
   - Steps 1 to 4 are denied with 42501 for both roles, and the seed is unchanged (`stage1_behavior.sql`, EVAL-043).
   - Catalog checks 3 to 9 pass (EVAL-041).
   - Over HTTP the writes return 401/403 (EVAL-046).
-  - Live still allows steps 1 to 3 (EVAL-048).
+  - Live still allows steps 1 to 3 (EVAL-048; unchanged at 12:39, EVAL-051).
 - **Becomes true at:** Stage 1 (migration M-1). Stage 2 extends it to the sandbox functions.
 - **Invariants:** I3, I4, I7. **Decision:** DR-013.
 - **Setup:** an ephemeral database from the repository migrations plus the Stage 1 migrations, at the seed.
@@ -61,7 +63,7 @@ Evidence IDs (EVAL-NNN) are in [`EVALUATION_LOG.md`](EVALUATION_LOG.md).
 - **Stage 1 status:** Implemented in the repository and verified locally; not applied to live.
   - Step 1 is denied with 42501 (behavior checks 9 and 17; HTTP 401/403).
   - The owner path still works: the integrity suite's check 5 passed (EVAL-044).
-  - Live still allows step 1 (EVAL-048, EVAL-049).
+  - Live still allows step 1 (EVAL-048, EVAL-049; unchanged at 12:39, EVAL-051).
 - **Becomes true at:** Stage 1 (M-1). The sandbox reset follows in Stage 2.
 - **Invariants:** I4, I7, I13. **Decision:** DR-014.
 - **Steps:**
@@ -167,6 +169,8 @@ Evidence IDs (EVAL-NNN) are in [`EVALUATION_LOG.md`](EVALUATION_LOG.md).
 - **Label:** Specification / future regression scenario.
 - **Stage 1 status:** the database rule is Implemented in the repository and verified locally; not applied to live.
   - 12 of 12 accept cases are accepted, and 33 of 33 reject cases are rejected by `evidence_source_https`, the empty string included (EVAL-043).
+  - **Since `8a1ad9d`:** 41 of 41 reject cases. The eight added cases cover a trailing LF, CR or CRLF after a valid URL, an LF after the host, a leading LF, a tab inside `://`, full-width scheme letters, and a Cyrillic lookalike letter in the host (EVAL-054, EVAL-056).
+  - **Accepted, and inert (documented leniencies):** `%0a` as escaped text, a port above 65535, and `javascript:` as text inside an https path (EVAL-054).
   - The implemented pattern refines the Phase 2B text (DR-021).
   - The rendering rule (A6) isn't built, and nothing renders `source`.
 - **Becomes true at:**
@@ -207,6 +211,7 @@ Evidence IDs (EVAL-NNN) are in [`EVALUATION_LOG.md`](EVALUATION_LOG.md).
   - Step 1 passes on Postgres 17.10, MAINTAIN included (EVAL-040; behavior check 21; catalog check 14).
   - Step 2 passes (catalog check 13).
   - **Functions aren't covered:** a new `postgres`-created function is still executable by PUBLIC (SEC-007). Catalog check 9 guards that.
+  - **Disposition (DR-023):** no default change in Stage 1. Every new function revokes EXECUTE from PUBLIC explicitly, and check 9 fails if one doesn't.
 - **Becomes true at:** Stage 1 (M-3).
 - **Invariants:** I3, I6, I9.
 - **Steps:**

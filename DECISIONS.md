@@ -8,7 +8,7 @@ and this log disagree, this log is authoritative.
 
 **Related records:**
 - [`docs/security/2026-10-02-audit-2b-reconcile.md`](docs/security/2026-10-02-audit-2b-reconcile.md): the security reconciliation, invariants, remediation plan and release gates
-- [`docs/security/findings.md`](docs/security/findings.md): one record per confirmed security finding (SEC-001 to SEC-006)
+- [`docs/security/findings.md`](docs/security/findings.md): one record per confirmed security finding (SEC-001 to SEC-007)
 - [`docs/evaluation/EVALUATION_LOG.md`](docs/evaluation/EVALUATION_LOG.md): every check that was run (EVAL-001 onward)
 - [`docs/evaluation/scenarios.md`](docs/evaluation/scenarios.md): regression scenarios that must stay testable
 
@@ -31,7 +31,7 @@ and this log disagree, this log is authoritative.
 | DR-003 | The current rollout stage is derived, not stored | Accepted | Implemented (`03a4666`) |
 | DR-004 | Build in this repository against our own Supabase project, not through Lovable | Accepted | Implemented (all code commits) |
 | DR-005 | Supabase project configuration | Accepted | In place since project creation |
-| DR-006 | No authentication in Phase 1; `anon` and `authenticated` have identical privileges | Accepted (extended by DR-020) | Implemented (`03a4666`) |
+| DR-006 | No authentication in Phase 1; `anon` and `authenticated` have identical privileges | Accepted (extended by DR-020; its R-8 assumption retired by DR-022) | Implemented (`03a4666`) |
 | DR-007 | The seeded launch has 16 gates, not 17 | Accepted | Implemented (`03a4666`, brief corrected in `9c65e6c`) |
 | DR-008 | Waiver text is copied onto the decision row | Accepted | Implemented (`9c65e6c`) |
 | DR-009 | Migration files carry the versions Supabase recorded | Accepted | Implemented (`9c65e6c`) |
@@ -44,9 +44,11 @@ and this log disagree, this log is authoritative.
 | DR-016 | The database sets visitor identity and evidence dates (D4) | Accepted | **Not yet implemented** |
 | DR-017 | Evidence URLs are https only; visitor URLs are never clickable (D5) | Accepted | Database rule in the repository and verified locally, **not applied to live**; rendering rule is Stage 2 |
 | DR-018 | Sandbox limits: 10 visitor evidence and 20 visitor decisions per gate, 5-minute cooldown (D6) | Accepted | **Not yet implemented** (Stage 2); Stage 1's zero public-write bound is in the repository, not applied to live |
-| DR-019 | One authoritative migration deployment path (D7) | Accepted | **Not yet implemented**; blocks production deployment (release gate R-9) |
-| DR-020 | No Supabase Auth at this stage; `authenticated` stays aligned with `anon` | Accepted | In force (nothing to build) |
-| DR-021 | Stage 1 security hardening: one migration, a read-only catalog test, a local behavior test | Accepted | In the repository and verified locally on Postgres 17; **not applied to live** |
+| DR-019 | One authoritative migration deployment path (D7) | Accepted | **Not yet implemented**; the deploy setting couldn't be read at the release checkpoint (EVAL-052); blocks production deployment (release gate R-9) |
+| DR-020 | No Supabase Auth at this stage; `authenticated` stays aligned with `anon` | Accepted (its R-8 consequence replaced by DR-022) | In force (nothing to build) |
+| DR-021 | Stage 1 security hardening: one migration, a read-only catalog test, a local behavior test | Accepted | In the repository, pushed (`e74aaaf`, test strengthened in `8a1ad9d`) and verified locally on Postgres 17; **not applied to live** |
+| DR-022 | Retire release gate R-8 (the Auth settings check); no Auth is an explicit tradeoff | Accepted | In force: documentation only; enforced by catalog checks 13 and 15 |
+| DR-023 | SEC-007 at the Stage 1 release: no default-privilege change; every new function is revoked explicitly | Accepted | Stage 1 part verified locally (no function exposed through the default); the Stage 2 obligation is recorded |
 
 ---
 
@@ -189,7 +191,7 @@ and this log disagree, this log is authoritative.
 ## DR-006: No authentication in Phase 1; `anon` and `authenticated` have identical privileges
 
 - **Date:** Phase 1 scope in the brief (authentication out of scope). Implemented in `03a4666` (09:14).
-- **Status:** Accepted. Extended beyond Phase 1 by DR-020, which keeps Auth out of the project at this stage.
+- **Status:** Accepted. Extended beyond Phase 1 by DR-020, which keeps Auth out of the project at this stage. The release gate R-8 named in its assumptions was retired by DR-022.
 - **Context:** there's no sign-in, but Supabase serves two API roles.
 - **Options considered:** grant to `anon` only; give `authenticated` more; keep them identical.
 - **Decision:**
@@ -550,6 +552,11 @@ restores the whole seed. **The project owner approved D1 to D7 on 2026-10-02** (
     - **To unblock, the owner reads Project Settings > Integrations > GitHub** (deploy to production on or off, production branch, working directory) and picks one path:
       - **The connector or CLI,** with "Deploy to production" turned off. A file applied through the connector is renamed to its recorded version (DR-009).
       - **The GitHub integration,** in which case nothing is applied through the connector.
+  - **Update (Stage 1 release checkpoint, 12:36 to 13:10):**
+    - The setting still can't be read. No available tool exposes the GitHub integration's settings, and nothing observable distinguishes "Deploy to production" on from off (EVAL-052).
+    - That is decision-tree Case C, so production was **not** changed.
+    - Pushing `claude/phase1-schema` at 12:40 applied nothing to live: the migration history was unchanged and no new database or API log entries appeared (EVAL-053). So a push to this branch doesn't deploy. Whether a merge to `main` would is unknown.
+    - Still blocking. The owner actions above are unchanged. Section 16 of the reconciliation record lists them, with the read-only verification to run after deployment.
 - **Context:** two mechanisms can apply migrations to the same project: the connector or CLI, and the GitHub integration. Competing paths cause double application and drift (finding N4).
 - **Options considered:** the connector or CLI as the single path; the GitHub integration as the single path; both (rejected).
 - **Decision:**
@@ -564,7 +571,7 @@ restores the whole seed. **The project owner approved D1 to D7 on 2026-10-02** (
 ## DR-020: No Supabase Auth at this stage; `authenticated` stays aligned with `anon`
 
 - **Date:** decided by the project owner on 2026-10-02, at the start of Stage 1.
-- **Status:** Accepted. Extends DR-006 beyond Phase 1.
+- **Status:** Accepted. Extends DR-006 beyond Phase 1. Its R-8 consequence (the owner checks the Auth settings) was replaced by DR-022 at the Stage 1 release checkpoint.
 - **Implementation status:** in force. There's nothing to build. This decision removes work rather than adding it.
 - **Context:**
   - The project is a portfolio and demo system for recruiter, hiring-manager and technical review, not a customer-facing SaaS product.
@@ -617,6 +624,11 @@ restores the whole seed. **The project owner approved D1 to D7 on 2026-10-02** (
 - **Date:** 2026-10-02, 11:47 to 12:05.
 - **Status:** Accepted
 - **Implementation status:** in the repository and **verified locally on Postgres 17.10**. **Not applied to the live project**, because the single deploy path isn't established (DR-019, R-9).
+  - **Update (Stage 1 release checkpoint):**
+    - Pushed to `origin/claude/phase1-schema` at 12:40 as `e74aaaf` (EVAL-053).
+    - `8a1ad9d` changed only the behavior test. Five test values that had been written as raw invisible or non-ASCII characters are now escape text (EVAL-055). Eight reject cases were added: line endings, a tab, full-width letters and a lookalike letter, 41 in total (EVAL-054). The migration is unchanged.
+    - The local replay passed again: catalog 17 of 17, behavior 24 of 24, fingerprint 12 of 12, integrity 6 of 6 (EVAL-056).
+    - Still **not applied to live** (DR-019). SEC-007's disposition is DR-023. Release gate R-8 was retired by DR-022.
 - **Context:** Phase 2B specified Stage 1 as steps S1 to S6, migrations M-1 to M-3, the catalog tests C-1 to C-14 and the behavior tests B-1 to B-3.
 - **Options considered:**
   - one migration or three
@@ -655,3 +667,85 @@ restores the whole seed. **The project owner approved D1 to D7 on 2026-10-02** (
 - **Evidence:**
   - EVAL-039 to EVAL-047: local results.
   - EVAL-048 and EVAL-049: the live read-only posture before the migration.
+
+## DR-022: Retire release gate R-8 (the Auth settings check); no Auth is an explicit tradeoff
+
+- **Date:** decided by the project owner on 2026-10-02, at the Stage 1 release checkpoint (12:36).
+- **Status:** Accepted. Amends DR-020 by replacing its R-8 consequence, and retires the R-8 assumption in DR-006.
+- **Implementation status:** in force. Documentation only: nothing is built and no setting changes.
+  - Release gate R-8 and Stage 1 step S6 are marked **retired** in the reconciliation record (sections 9, 11 and 16), not passed.
+  - The replacement condition is already enforced by catalog checks 13 and 15. Both pass on the local Stage 1 build (EVAL-056). Check 13 also passes on live (EVAL-051).
+- **Context:**
+  - R-8 asked the owner to read the Auth signup settings in the dashboard, because if signups are open anyone can obtain the `authenticated` role (DR-006, DR-020).
+  - The project deliberately doesn't use Supabase Auth (DR-020), and no available tool reads those settings.
+  - Keeping R-8 made the Stage 1 release wait on the configuration of a subsystem the project doesn't use.
+- **Options considered:**
+  1. **Keep R-8 as an owner action.** It makes the release wait on a manual reading that proves less than the database test: it describes one setting at one moment, while checks 13 and 15 test what any `authenticated` caller can do.
+  2. **Make Auth hardening a release requirement** (signups off, CAPTCHA, rate limits). Rejected: it creates an Auth dependency only to satisfy a checklist.
+  3. **Retire R-8, and gate the release on a database condition** that is tested on every run.
+- **Decision:** option 3.
+  - Auth is intentionally not used for this synthetic public demo. Security is enforced through database permissions, row-level security, narrowly scoped functions (none callable by the public in Stage 1), provenance and sandbox isolation (both Stage 2).
+  - Release gate R-8 is retired. **Its replacement:** catalog checks 13 and 15 pass on every deployment.
+    - **Check 13:** `anon` and `authenticated` hold identical privileges on every table, column, sequence and function in `public`, on the schema itself, and on the database.
+    - **Check 15:** the policies fingerprint pins every policy's role list, so no policy can treat the two roles differently without failing the run.
+- **Rationale:**
+  - The risk behind R-8 is that a stranger obtains the `authenticated` role. While the two roles hold exactly the same privileges, that role gives nothing the publishable key doesn't already give.
+  - Checks 13 and 15 test that condition directly, on live as well as locally, every time they run.
+- **What this doesn't mean (the tradeoff):**
+  - Running without Auth isn't a security advantage, and the system isn't "secure because it has no Auth". The costs listed in DR-020 stand: no per-person attribution, no private sandboxes, no per-person limits, and no way to block one visitor.
+  - **The Auth settings stay unread.** If signups are open, account creation is an abuse surface of its own: junk rows in `auth.users`, and confirmation emails sent to arbitrary addresses. Supabase's Auth rate limits govern that, and they're unverified for this project. Accounts created that way gain no data access beyond `anon`'s while checks 13 and 15 pass.
+  - Checks 13 and 15 cover schema `public` and the database, which is everything the application uses. Other schemas, such as Supabase's `storage`, are outside them.
+- **Assumptions:** the data stays synthetic, and DR-020's revisit triggers still apply.
+- **Consequences:**
+  - A change that gives `authenticated` something `anon` lacks fails check 13 or 15. It then needs a new decision that revisits DR-020 and this one; editing the test alone isn't enough.
+  - Turning signups off in the dashboard remains available to the owner as optional defense in depth. It isn't a release gate and isn't tracked as one.
+  - If Auth is ever introduced (DR-020's revisit triggers), its settings become part of that design, with their own gates.
+- **Evidence:**
+  - EVAL-024 and EVAL-051: 0 Auth users and 0 identities on live (and 0 anonymous users, EVAL-051). No policy or function in `public` refers to `auth.*` (EVAL-051).
+  - EVAL-048 and EVAL-051: check 13 passes on live.
+  - EVAL-041 and EVAL-056: checks 13 and 15 pass on the local Stage 1 build.
+
+## DR-023: SEC-007 at the Stage 1 release: no default-privilege change; every new function is revoked explicitly
+
+- **Date:** 2026-10-02, at the Stage 1 release checkpoint (12:42 to 12:50).
+- **Status:** Accepted. Settles the question DR-021 left open.
+- **Implementation status:**
+  - **Stage 1 part:** nothing to build. The audit below found no function exposed through the default.
+  - **Stage 2 part:** an obligation on the sandbox migration, recorded here and in SEC-007. Not yet implemented.
+- **Context:**
+  - **SEC-007:** in Postgres, a new function grants EXECUTE to PUBLIC unless that is revoked.
+    - Live's per-schema default for functions in `public` (`{postgres=X/postgres}`) is added to that built-in default; it doesn't replace it.
+    - A per-schema REVOKE can't remove a global default.
+    - So every function `postgres` creates in `public` starts out executable by `anon` and `authenticated`, through PUBLIC.
+  - **The owner's instruction:** don't broaden Stage 1 because SEC-007 exists, but don't leave an actually exposed Stage 1 security-sensitive function unresolved either. A narrow, explicit REVOKE or GRANT is preferred over a broad default-privilege change.
+- **The audit (Stage 1 scope):**
+  - **Live today (EVAL-051):**
+    - PUBLIC holds EXECUTE on no function in `public`.
+    - The two application functions are executable by `anon` and `authenticated` through explicit grants. M-1 revokes exactly those grants.
+    - `rls_auto_enable()` is already owner-only (DR-010).
+  - **The Stage 1 migration:** creates 0 functions and contains 0 GRANT statements (EVAL-056).
+  - **After Stage 1, locally (EVAL-056):**
+    - `reset_demo_data()` and `set_gate_status(...)` both have ACL `{postgres=X/postgres}`.
+    - PUBLIC, `anon` and `authenticated` can't execute any function in `public` (catalog check 9).
+  - **Conclusion:** no function is exposed through the default, and none will be after Stage 1: the latent default never takes effect in Stage 1, because Stage 1 creates no function. The two functions live exposes today are exposed by explicit grants (SEC-001, SEC-002), not by the default. M-1 revokes them, so that exposure ends only when Stage 1 reaches live.
+- **Options considered:**
+  1. **Add a narrow REVOKE to the Stage 1 migration.** Nothing needs it: M-1 already removes every grant, and no function receives the default.
+  2. **Change the default globally:** `alter default privileges for role postgres revoke execute on functions from public;`, with no schema. It's the only form that removes the built-in PUBLIC default. But it changes every function `postgres` creates in **any** schema, including functions that Supabase or extensions create. That's broader than Stage 1 and needs its own testing.
+  3. **Leave the default as it is in Stage 1,** require every new function to revoke EXECUTE from PUBLIC explicitly, and keep the catalog test as the guard.
+- **Decision:** option 3.
+  - Stage 1 makes no default-privilege change for functions. SEC-007 stays open as a documented latent finding, Low.
+  - **Stage 2 obligation:**
+    - Every function the sandbox migration creates runs `revoke all on function ... from public` before any GRANT, as the Phase 2B M-6 specification already requires (reconciliation record, section 9). It also revokes from `anon` and `authenticated` by name, in case a default ever grants them directly.
+    - The same commit updates check 9's allowlist to exactly the functions meant to be public, and check 15's expected values.
+  - The global change (option 2) stays available as a separate decision. If it's taken, it gets its own migration, local replay and review.
+- **Rationale:**
+  - There's no Stage 1 exposure to fix, so a Stage 1 change would add risk without removing any.
+  - Check 9 fails if any function in `public` becomes executable by `anon` or `authenticated`, PUBLIC included, because both roles inherit PUBLIC's privileges (EVAL-042 shows it catching a new function). A forgotten REVOKE in Stage 2 is caught before release.
+- **Assumptions:** functions in `public` are created only by `postgres` (check 17), through migrations.
+- **Consequences:**
+  - A function written without the explicit REVOKE is a defect that check 9 catches, not a design choice.
+  - SEC-007's record points here for its disposition.
+- **Evidence:**
+  - EVAL-040 and EVAL-042: the built-in default on Postgres 17, and check 9 catching it.
+  - EVAL-051: live function ACLs; PUBLIC holds EXECUTE on no function.
+  - EVAL-056: the Stage 1 build's function ACLs; the migration has 0 functions and 0 GRANT statements.

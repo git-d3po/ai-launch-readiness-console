@@ -5,10 +5,10 @@
 > - **Security evidence:** findings and evidence live under [`docs/security/`](docs/security/) and [`docs/evaluation/`](docs/evaluation/).
 > - **Trust model:** the public write and reset model in section 1 is superseded by the accepted Phase 2B trust-model decision (DR-013, DR-014): a read-only canonical launch plus a disposable shared sandbox, with reset limited to the sandbox. The superseded model had visitors editing the launch, and "Reset demo data" restoring the whole seed.
 > - **Implementation:**
->   - **Stage 1** (no public writes, https-only evidence sources, closed default privileges) is in the repository and verified locally (DR-021).
->   - Stage 1 is **not yet applied to the live project**, which still had the Phase 1 public write paths when it was last read (2026-10-02, 12:00 UTC).
+>   - **Stage 1** (no public writes, https-only evidence sources, closed default privileges) is in the repository, verified locally and pushed to `claude/phase1-schema` (DR-021). It isn't merged to `main`.
+>   - Stage 1 is **not yet applied to the live project**, which still had the Phase 1 public write paths when it was last read (2026-10-02, 12:39 UTC). Production deployment is pending, because the single deploy path couldn't be established (DR-019, release gate R-9).
 >   - The Stage 2 sandbox isn't built.
-> - **Authentication:** the project deliberately doesn't use Supabase Auth at this stage (DR-020).
+> - **Authentication:** the project deliberately doesn't use Supabase Auth at this stage (DR-020). That's an explicit tradeoff, not a security advantage, and the old Auth-settings release gate is retired (DR-022).
 > - **Build approach:** the project is built directly in this repository against its own Supabase project, not through Lovable (DR-004).
 
 This document gives full context for a portfolio project in planning. It contains the original product brief, a proposed technical design, the seed data plan, working assumptions, the build approach, and the decisions still open. Nothing has been built yet.

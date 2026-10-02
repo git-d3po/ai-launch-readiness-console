@@ -29,12 +29,14 @@ Audit 1's original rating is kept beside the revised one.
 | SEC-004 | Visitor text is shown as authoritative on the canonical overview | H3, H4 | High, High | Medium; H4 Low | Yes | Yes | Stage 1 part: yes | **No** |
 | SEC-005 | `evidence.source` accepts `javascript:` and other unsafe URLs | H2 | High | Low (latent) | Yes | Yes | Database rule: yes | **No** |
 | SEC-006 | Default privileges give API roles privileges on future tables | H5 | High | Low | Yes (facts) | Yes | Yes | **No** |
-| SEC-007 | Functions that `postgres` creates are executable by PUBLIC by default | None (new in Stage 1) | n/a | Low (latent) | Yes | **No** (needs a decision) | No (guarded by catalog check 9) | No |
+| SEC-007 | Functions that `postgres` creates are executable by PUBLIC by default | None (new in Stage 1) | n/a | Low (latent) | Yes | Yes: no default change; explicit revoke per function (DR-023) | Nothing to change in Stage 1; guarded by catalog check 9 | n/a (nothing to apply) |
 
-**Status after Stage 1 (2026-10-02, about 12:05):**
-- **In the repository:** migration `supabase/migrations/20261002115318_stage1_security_hardening.sql` implements the Stage 1 part of SEC-001 to SEC-006. It was verified on a local Postgres 17 build (EVAL-039 to EVAL-047).
-- **Not applied to the live project.** The single deploy path couldn't be established (DR-019, release gate R-9).
-- **Live, read at 12:00:** it still grants the Phase 1 public write paths. The catalog test fails there exactly where the migration fixes things (EVAL-048).
+**Status at the Stage 1 release checkpoint (2026-10-02, about 13:10):**
+- **In the repository:** migration `supabase/migrations/20261002115318_stage1_security_hardening.sql` implements the Stage 1 part of SEC-001 to SEC-006. It was verified on a local Postgres 17 build (EVAL-039 to EVAL-047), and again after the behavior test was strengthened (EVAL-056).
+- **Pushed:** `origin/claude/phase1-schema` carries it (EVAL-053). It isn't merged to `main`.
+- **Not applied to the live project.** The single deploy path still can't be established: the GitHub integration's deploy setting isn't readable with the available tools (EVAL-052; DR-019, release gate R-9).
+- **Live, read at 12:00 and again at 12:39:** unchanged. It still grants the Phase 1 public write paths, and the catalog test fails there exactly where the migration fixes things (EVAL-048, EVAL-051). Up to 12:36, no external request had reached a data or function endpoint (EVAL-052).
+- **SEC-007:** disposition decided (DR-023). No function is exposed through the default; the two functions live exposes today hold explicit grants, which M-1 revokes.
 - **Stage 2 controls:** none are built (provenance, visitor text checks, caps, cooldown, URL rendering).
 
 ---
@@ -344,6 +346,14 @@ Audit 1's original rating is kept beside the revised one.
   - Remediation specified: **no** (needs a decision).
   - In the repository: no fix; guarded by check 9.
   - Applied to live: no.
+- **Disposition (Stage 1 release checkpoint, DR-023):**
+  - **Audit:** no function is exposed through the default, now or after Stage 1.
+    - On live, PUBLIC holds EXECUTE on no function in `public`. The two functions `anon` and `authenticated` can execute hold explicit grants, which M-1 revokes (EVAL-051).
+    - The Stage 1 migration creates 0 functions and contains 0 GRANT statements.
+    - After Stage 1, locally, both application functions are owner-only, and check 9 passes (EVAL-056).
+  - **Decision:** no default-privilege change in Stage 1. The global candidate above stays a separate decision with its own testing.
+  - **Stage 2 obligation:** every new function revokes EXECUTE from PUBLIC (and from `anon` and `authenticated`) before any GRANT, and the same commit updates check 9's allowlist.
+  - **Remediation specified:** yes, as that rule. The finding stays **open** and Low (latent): the built-in default is unchanged.
 
 ---
 
@@ -352,7 +362,7 @@ Audit 1's original rating is kept beside the revised one.
 | Audit ID | Disposition | Where tracked |
 |---|---|---|
 | H6 missing security headers | Not a current vulnerability; nothing is hosted | Release gates R-12, R-13 |
-| M1 Auth signups | Low; settings unreadable | Release gate R-8 |
+| M1 Auth signups | Low; settings unread. No longer a release gate: R-8 was retired (DR-022) | Catalog checks 13 and 15 (DR-022) |
 | M2 raw database error text | Rejected as security; a UX item | A1 |
 | M3 connector has owner-level access | Operational, Low | Reconciliation record §6 |
 | M4 cross-launch gate references | Stage 2 integrity guard | M-4 composite keys |
@@ -362,5 +372,5 @@ Audit 1's original rating is kept beside the revised one.
 | N1 payload growth | Merged | SEC-003 |
 | N2 zero-gate "Ready" | Deferred product fix | Reconciliation record §13 |
 | N3 destructive integrity suite | Process invariant | I19 |
-| N4 unconfirmed deploy path | Release gate | R-9, DR-019 |
+| N4 unconfirmed deploy path | Release gate; still open at the Stage 1 release checkpoint (EVAL-052) | R-9, DR-019 |
 | N5 route ids beyond 2^53 | Deferred UX | A2 |
