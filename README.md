@@ -1,1 +1,1 @@
-# AI-Launch-Readiness-Console
+# ai-launch-readiness-console
