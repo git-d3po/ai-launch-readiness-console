@@ -116,6 +116,7 @@ migrations (`supabase/tests/local_roles.sql` first, for the `anon` and `authenti
 | EVAL-077 | 2026-10-02, after EVAL-076 | Stage 2: visitor functions refuse isolation levels above READ COMMITTED | local | Pre-guard: 11th item and Passed without evidence at both levels; guarded: refused, 9/9 | Reproducible from repo (checks 6 to 9); scratch probes recorded only |
 | EVAL-078 | 2026-10-02, after EVAL-077 | Stage 2: full re-run after EVAL-077 | local, build | 17/17, 7/7, 24/24, 29/29, 6/6, concurrency 9/9 (x2, plus 3 earlier runs); stress 0 deadlocks; canonical_data unchanged; 11/11, typecheck, build | Reproducible from repo; stress recorded only |
 | EVAL-079 | 2026-10-02, after EVAL-078 | A1: P0001 shown verbatim, other errors generic | local | 13 new tests pass, and 6 fail with the boundary removed; end to end on a local PostgREST: P0001 verbatim, 23514/23502/22P02/42501 generic | Reproducible from repo (unit tests); end-to-end run recorded only |
+| EVAL-080 | 2026-10-02, after EVAL-079 | A9 types generated locally; A8 provenance fields | local | Types match the local catalog (65 columns, 8 relations, 6 functions); 29/29 tests; A8 end to end on a local PostgREST | Reproducible from repo (generation command, unit tests); end-to-end run recorded only |
 
 ---
 
@@ -1550,6 +1551,20 @@ Starting commit: `da583ab0188b9e6b34de99046909cecdbb8bc03b`, clean. Specificatio
 - **End to end (recorded only):** the real data layer and boundary against the local PostgREST, as `anon`. The launches load succeeds (both launches, "6 of 16 passed"). `sandbox_add_evidence` on a canonical gate shows `Only sandbox gates accept visitor evidence` verbatim. A control character (23514), a null title (23502), an unknown evidence type (22P02) and a direct insert (42501) each show `Could not save (code XXXXX)`, without the constraint or column names their raw messages carry.
 - **Result:** Vitest 24 of 24 (11 existing, 13 new); typecheck exit 0; build succeeds.
 - **Reproducibility:** the unit tests are reproducible from repo; the end-to-end run is recorded only.
+
+### EVAL-080: A9 types generated from a local Stage 2 database; A8 provenance fields
+- **Date:** 2026-10-02, after EVAL-079.
+- **Target:** local only. A disposable database built from `local_roles.sql` and the 7 migrations; no production call, and the live project (Stage 1 only) wasn't used as a source.
+- **A9, method:** the official Supabase CLI 2.119.0, installed with npm in a scratch directory outside the repository and run directly from that installation (no change to the repository's `package.json` or lockfile), in its direct-URL mode, which needs neither Docker nor a project:
+  ```
+  supabase gen types typescript --db-url "postgresql://postgres@127.0.0.1:5433/<local db>?sslmode=disable" --schema public | sed 's/[[:space:]]*$//'
+  ```
+  The `sed` only strips trailing whitespace from two blank lines; the file is otherwise the CLI's output byte for byte, and two runs produced identical output. The output is unformatted, and it has no `__InternalSupabase` block, because a database URL carries no PostgREST version; supabase-js treats that block as optional.
+- **A9, check:** every column of the 8 public relations (65) and every public function with its argument names (6) appear in the file. Stage 2 adds `origin`, `source_launch_id`, `source_gate_id`, `sandbox_state`, the `record_origin` enum, the composite same-launch keys, the three sandbox functions, `build_sandbox`, and the 6-argument `set_gate_status`; the 5-argument one is gone. Like the earlier generated file, it lists owner-only objects too: types grant nothing, and the rule that the client calls only the three sandbox functions stays a code rule (§19).
+- **A8:** `fetchLaunchRows` and `fetchLaunchOverview` select `source_launch_id` and expose it as `sourceLaunchId` (null for a canonical launch); the overview's latest decisions select `origin`. Errors still go through `toDataError`. `source_gate_id` isn't selected: §10 lists only `origin` and `source_launch_id`, and "link to the sandbox" (A4, §19) is satisfied by the sandbox launch; a gate-level link would be an A4 decision.
+- **Tests:** 29 of 29. The new ones check the selected columns and the mapped fields for a canonical and a sandbox launch, the overview's launch source and decision origins, and that read errors are still `DataError`s; with the two new columns removed from the selects, 2 fail. The stub client from EVAL-079 moved to `src/lib/testing.ts`, and the sandbox function calls in `errors.test.ts` now use the typed client.
+- **End to end (recorded only):** against a local PostgREST, as `anon`: the list returns the canonical launch with `sourceLaunchId` null and the sandbox with 1. A typed `sandbox_set_gate_status` call created a visitor decision, which the sandbox overview returns with origin `visitor` and decider "Sandbox visitor"; the canonical overview returns only `seed` decisions.
+- **Reproducibility:** the generation command and unit tests are reproducible from repo; the end-to-end run is recorded only.
 
 ## Not run (don't claim these)
 

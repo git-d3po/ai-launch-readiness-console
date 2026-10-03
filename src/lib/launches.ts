@@ -10,6 +10,8 @@ export interface LaunchRow {
   name: string;
   owner: string;
   targetDate: string | null;
+  /** The canonical launch this sandbox copies; null for a canonical launch (A8). */
+  sourceLaunchId: number | null;
   currentStage: { stage: Enums['stage_kind']; status: Enums['stage_status'] } | null;
   readiness: Readiness<ReadinessGate>;
 }
@@ -19,6 +21,7 @@ interface LaunchWithGates {
   name: string;
   owner: string;
   target_date: string | null;
+  source_launch_id: number | null;
   gates: { required: boolean; status: Enums['gate_status']; evidence: { id: number }[] }[];
 }
 
@@ -28,7 +31,7 @@ export async function fetchLaunchRows(client: Client): Promise<LaunchRow[]> {
   const [launches, stages] = await Promise.all([
     client
       .from('launches')
-      .select('id, name, owner, target_date, gates(required, status, evidence(id))')
+      .select('id, name, owner, target_date, source_launch_id, gates(required, status, evidence(id))')
       .order('name'),
     client.from('launch_current_stage').select('launch_id, stage, status'),
   ]);
@@ -47,6 +50,7 @@ export function toLaunchRows(launches: readonly LaunchWithGates[], stages: reado
       name: launch.name,
       owner: launch.owner,
       targetDate: launch.target_date,
+      sourceLaunchId: launch.source_launch_id,
       currentStage: stage?.stage && stage.status ? { stage: stage.stage, status: stage.status } : null,
       readiness: computeReadiness(
         launch.gates.map((g) => ({ required: g.required, status: g.status, evidenceCount: g.evidence.length })),

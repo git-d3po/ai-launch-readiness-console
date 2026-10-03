@@ -4,6 +4,7 @@ import type { Database } from './database.types';
 import { DataError, toDataError, userMessage } from './errors';
 import { fetchLaunchRows } from './launches';
 import { fetchLaunchOverview } from './overview';
+import { clientAnswering, clientOptions, type Reply } from './testing';
 
 // Error bodies are PostgREST 12.2.3 responses captured from a local database
 // built from this repository's migrations, called as anon. The timestamps in
@@ -40,34 +41,6 @@ const responses = {
     body: { code: '42501', details: null, hint: null, message: 'permission denied for table evidence' },
   },
 } as const;
-
-type Reply = { status: number; body: unknown };
-
-function answering(route: (path: string) => Reply) {
-  return async (input: RequestInfo | URL) => {
-    const { pathname } = new URL(input instanceof Request ? input.url : String(input));
-    const reply = route(pathname);
-    return new Response(JSON.stringify(reply.body), {
-      status: reply.status,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  };
-}
-const options = { auth: { persistSession: false, autoRefreshToken: false } };
-
-/** A real supabase-js client whose requests are answered by `route(path)`. */
-function clientAnswering(route: (path: string) => Reply) {
-  return createClient<Database>('http://localhost.test', 'test-publishable-key', {
-    ...options,
-    global: { fetch: answering(route) },
-  });
-}
-
-// The generated types predate Stage 2 and don't list the sandbox functions, so
-// the sandbox function calls use an untyped client.
-function rpcClientAnswering(route: (path: string) => Reply) {
-  return createClient('http://localhost.test', 'test-publishable-key', { ...options, global: { fetch: answering(route) } });
-}
 
 /** Every raw string a database error carried, none of which may reach the user. */
 function rawText(body: { message: string; details: string | null }): string[] {
@@ -109,14 +82,14 @@ describe('A1: P0001 messages are shown verbatim', () => {
 
   it('does not rewrite a P0001 message that looks structured', async () => {
     const message = 'Gate 42: status "Waived" -> needs {waiver_rationale}; see [section 19] (code 23514)';
-    const client = rpcClientAnswering(() => ({ status: 400, body: { code: 'P0001', details: null, hint: null, message } }));
+    const client = clientAnswering(() => ({ status: 400, body: { code: 'P0001', details: null, hint: null, message } }));
     const { error } = await client.rpc('sandbox_reset');
     expect(error).not.toBeNull();
     expect(userMessage(toDataError(error!), 'Could not reset the sandbox')).toBe(message);
   });
 
   it('keeps a P0001 message verbatim from a sandbox function call', async () => {
-    const client = rpcClientAnswering(() => responses.p0001NotSandbox);
+    const client = clientAnswering(() => responses.p0001NotSandbox);
     const { error } = await client.rpc('sandbox_add_evidence', {
       gate_id: 1,
       type: 'Observation',
@@ -148,7 +121,7 @@ describe('A1: every other error is generic, with its code', () => {
   });
 
   it('hides the raw text of a constraint error from a sandbox function call', async () => {
-    const client = rpcClientAnswering(() => responses.checkViolation);
+    const client = clientAnswering(() => responses.checkViolation);
     const { error } = await client.rpc('sandbox_add_evidence', {
       gate_id: 17,
       type: 'Observation',
@@ -162,7 +135,7 @@ describe('A1: every other error is generic, with its code', () => {
   it('hides a network failure, which has no code', async () => {
     // Retries off: postgrest-js retries a failed GET with backoff, which only slows the test.
     const client = createClient<Database>('http://localhost.test', 'test-publishable-key', {
-      ...options,
+      ...clientOptions,
       db: { retry: false },
       global: {
         fetch: async () => {

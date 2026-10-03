@@ -416,8 +416,8 @@ alter default privileges for role postgres in schema public revoke all on tables
 | A5 | Stage 2 | Visitor evidence and decisions show a "Visitor" label beside the type and the decider |
 | A6 | Stage 2 | **Rendering `source`:**<br>• visitor-origin `source` is plain text<br>• seed-origin `source` is a link only if `new URL(source).protocol === 'https:'`, with `rel="noopener noreferrer nofollow"` |
 | A7 | Stage 2 | The header button becomes "Reset sandbox", calls `sandbox_reset` behind a confirmation, and shows the cooldown message |
-| A8 | Stage 2 | Queries select `origin` and `source_launch_id` |
-| A9 | Stage 2 | Regenerate `src/lib/database.types.ts` after the migrations |
+| A8 | Stage 2 | Queries select `origin` and `source_launch_id`. **In the repository** (EVAL-080): launches and the overview select `source_launch_id`; the overview's decisions select `origin` |
+| A9 | Stage 2 | Regenerate `src/lib/database.types.ts` after the migrations. **In the repository** (EVAL-080): generated from a local database built from the migrations, not from live |
 
 ## 10. Regression test specification
 
@@ -893,3 +893,4 @@ All three are SECURITY DEFINER, owned by `postgres`, with `search_path = ''`, no
   - Re-verified on fresh builds: catalog 17/17 (check 15's `functions` value is now `04dd6a74f664cd7a92deb5d491a90e8f`), C-14 7/7, Stage 1 behavior 24/24, B-4 29/29, integrity 6/6, concurrency 4 races and check 5, `canonical_data` unchanged.
 - **Update (2026-10-02, after EVAL-077):** the same isolation dependency held for the visitor functions. Above READ COMMITTED, `sandbox_add_evidence` could add an 11th item and `sandbox_set_gate_status` could pass a gate whose evidence a concurrent reset had deleted. Both now refuse REPEATABLE READ and SERIALIZABLE, as `sandbox_reset` does (see **Isolation** above; EVAL-077). Re-verified on fresh builds (EVAL-078): catalog 17/17 (check 15's `functions` value is now `849220530a3d4b56a35f4e154a6d19e6`), C-14 7/7, Stage 1 behavior 24/24, B-4 29/29, integrity 6/6, concurrency 9/9, `canonical_data` unchanged.
 - **Update (2026-10-02, after EVAL-078):** A1 is in the repository and tested (EVAL-079). The two read pages use it today; the write and reset UI (A3 to A9) will call the same `userMessage`. Not deployed.
+- **Update (2026-10-02, after EVAL-079):** A8 and A9 are in the repository, not yet committed (EVAL-080). A8: the read path selects `source_launch_id` for launches and `origin` for the overview's decisions. A9: `src/lib/database.types.ts` is regenerated from a disposable local database built from the migrations. Both are validated locally, without production contact. A3 to A7 aren't built.
