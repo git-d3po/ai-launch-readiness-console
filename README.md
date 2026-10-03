@@ -7,8 +7,8 @@ Postgres is the trust boundary. Visitors read a canonical launch they can't chan
 ## Status
 
 - **Stage 2 is implemented in this repository:** the sandbox database migrations M-4 to M-6 and the UI (gate sheet, sandbox forms, "Visitor" labels, safe source links, the global sandbox reset, an About page). It is verified locally against disposable databases. `main` is the release branch; development happens on `claude/phase1-schema` and reaches `main` through reviewed pull requests.
-- **Nothing is publicly hosted.**
-- **The connected production database is at Stage 2:** migrations M-4 to M-6 and a corrective migration are applied and verified (2026-10-03, EVAL-091 in the [evaluation log](docs/evaluation/EVALUATION_LOG.md)). The frontend isn't deployed yet; hosting needs its own authorization.
+- **Hosted, not shared:** the frontend is deployed on Railway from `main` (Stage 4, EVAL-092). Its URL isn't public yet; the hosted smoke test (Stage 5) comes first.
+- **The connected production database is at Stage 2:** migrations M-4 to M-6 and a corrective migration are applied and verified (2026-10-03, EVAL-091 in the [evaluation log](docs/evaluation/EVALUATION_LOG.md)).
 
 ## Stack
 
@@ -53,7 +53,7 @@ Never put a service-role key, a database password or any other secret in a `VITE
 
 ## Hosting requirements
 
-The host is Railway, building `main`, on its generated `.up.railway.app` domain for the initial release. Nothing is deployed yet, and Railway must not deploy `main` before the production database is at Stage 2. The host must provide:
+The host is Railway, building `main`, on its generated `.up.railway.app` domain for the initial release. It deploys `main` (Stage 4, EVAL-092); the production database is at Stage 2. The host must provide:
 
 - static hosting of `dist/`;
 - a single-page-app fallback: every application route (for example `/launches/2/gates/30`) rewritten to `/index.html`;

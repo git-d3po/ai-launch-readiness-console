@@ -524,7 +524,7 @@ inside a rolled-back transaction.
 | Gate | Condition | Status |
 |---|---|---|
 | R-11 | A3 to A7 shipped | Built in the repository and verified locally (EVAL-081 to EVAL-086); **not shipped**: nothing is hosted. The database part is applied to live and verified (EVAL-091). Closes only after §20 stages 3 to 5: database deployed and verified, frontend hosted, smoke test passed |
-| R-12 | **Production headers set:**<br>• CSP `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src https://<project>.supabase.co; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'`<br>• `X-Content-Type-Options: nosniff`<br>• `Referrer-Policy: strict-origin-when-cross-origin`<br>• `Permissions-Policy: camera=(), microphone=(), geolocation=()`<br>• HTTPS with HSTS | Not started (nothing hosted) |
+| R-12 | **Production headers set:**<br>• CSP `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src https://<project>.supabase.co; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'`<br>• `X-Content-Type-Options: nosniff`<br>• `Referrer-Policy: strict-origin-when-cross-origin`<br>• `Permissions-Policy: camera=(), microphone=(), geolocation=()`<br>• HTTPS with HSTS | Implemented in the server (DR-027) and deployed (EVAL-092); not yet observed on the hosted responses |
 | R-13 | One clean Report-Only CSP pass before the header is enforced | Not started |
 
 ## 12. Unresolved verification items
@@ -987,8 +987,8 @@ Each stage needs the previous one complete. **No stage authorizes the next:** st
 |---|---|---|---|
 | 1 | **Repository ready.** Stage 2 database (M-4 to M-6) and UI (A1, A3 to A9) in the repository and verified locally (EVAL-071 to EVAL-087). | The owner, by authorizing stage 2 | Owner decisions recorded or explicitly deferred (below); authorization given |
 | 2 | **Database deployment authorized.** A dated, explicit owner authorization for one Stage 2 database window, including how the connector's confirmation is handled. The first 2026-10-03 window applied M-4 only and stopped on a C-11 mismatch (EVAL-088). **Complete:** the second window, under a new authorization, applied the corrective, M-5 and M-6 (EVAL-091). | The deployer, by running the preflight and then the applications | Preflight passed; each migration applied once with its per-step checks passed (since DR-026: the corrective, M-5 and M-6) |
-| 3 | **Database deployed and verified.** Post-deployment checks passed; files renamed and parity proven; evidence committed. **Current stage: complete** (EVAL-091); waiting on the owner's stage 4 authorization. | The owner, by authorizing stage 4 | Every post-deployment check passes |
-| 4 | **Frontend deployed, not released.** Built with the live values, hosted with the SPA fallback, HTTPS and headers, CSP in Report-Only. The URL isn't shared. | The owner, by authorizing stage 5 | Hosted build loads; headers present |
+| 3 | **Database deployed and verified.** Post-deployment checks passed; files renamed and parity proven; evidence committed. **Complete** (EVAL-091). | The owner, by authorizing stage 4 | Every post-deployment check passes |
+| 4 | **Frontend deployed, not released.** Built with the live values, hosted with the SPA fallback, HTTPS and headers, CSP in Report-Only. The URL isn't shared. **Current stage: frontend hosted, not yet publicly shared** (2026-10-03, EVAL-092). Deployed and healthy on Railway; the hosted route, data-read and header checks are pending, because this session can't reach the domain. | The owner, by authorizing stage 5 | Hosted build loads; headers present |
 | 5 | **Production smoke test complete.** The first exercise of the public API path; mutates sandbox data only. | The owner, by authorizing stage 6 | Every smoke step passes; sandbox reset at the end; canonical data unchanged |
 | 6 | **Public release.** CSP enforced after a clean Report-Only pass; R-11 to R-13 closed; URL shared. | Not applicable | Gates closed and recorded |
 
@@ -1180,6 +1180,7 @@ The seven security parts equal catalog check 15's embedded values. **Superseded:
 - HTTPS with HSTS, and the R-12 headers, with the CSP first sent as `Content-Security-Policy-Report-Only` (R-13). `connect-src` names the project's own `https://<project-ref>.supabase.co`, supplied at configuration time, not written into the repository. The current build needs nothing beyond R-12's policy: one same-origin script and stylesheet, no inline script or style, no websocket (checked in the release-readiness review).
 - The URL stays unshared until stage 6.
 - **Implementation (DR-027):** `npm start` runs `server/static-server.mjs`, a dependency-free Node server for `dist/` with the SPA fallback, real 404s for missing assets, the R-12 headers with the CSP report-only, and `connect-src` taken from `VITE_SUPABASE_URL` at start-up. `railway.json` sets the build, start command and a healthcheck on `/`.
+- **Deployed (2026-10-03, EVAL-092):** Railway project `ai-launch-readiness-console`, service `web`, environment `production`, from `main` at `4a3b869`; Node 22.23.2; healthcheck on `/` passed; Railway-generated domain (recorded in EVAL-092, not shared). Pending: the hosted checks of the routes, the production data read, the console and the R-12 headers, from a browser that can reach the domain.
 
 ### Production smoke test (stage 5, not yet run)
 

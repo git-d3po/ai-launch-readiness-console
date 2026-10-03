@@ -128,6 +128,7 @@ migrations (`supabase/tests/local_roles.sql` first, for the `anon` and `authenti
 | EVAL-089 | 2026-10-03, 19:05 to 19:20 | DR-026 local validation: production-replica and clean replays, the corrective's negative tests, C-11 script faults | local | Both paths converge on the Stage 2 baseline; 17/17, 7/7, 24/24, 29/29, 9/9, 6/6 on each; I14 0 mismatches; every fault refused atomically | Reproducible from repo (migrations, suites, verifier); the step harness and fault cases recorded only |
 | EVAL-090 | 2026-10-03, 19:04 to 19:23 | DR-026 repository validation; the tool path decoded the same four escape texts in a file write | local, build, static | Lint 8/8; 116/116 tests; lint mutants 5/5 caught; typecheck, build; hygiene found and fixed 4 raw bidi characters before commit | Reproducible from repo; the reproduction recorded only |
 | EVAL-091 | 2026-10-03, 19:32 to 19:56 | Stage 2 production window resumed: Stage 1 + M-4 preflight, corrective, M-5, M-6, V1 to V9 | live read-only, live write | P1 to P8 pass; three applies, each verified at once by C-11; 8 versions, C-11 PASS with the one M-4 exception; catalog 17/17; C-14 7/7; fingerprint = Stage 2 baseline; canonical data unchanged | Catalog, fingerprint, C-14 and C-11 reproducible from repo, read-only; the window recorded only |
+| EVAL-092 | 2026-10-03, 20:13 to 20:27 | Stage 4: Railway project and service, first deployment of `main` | hosting, static | Built and deployed `4a3b869`; server started on Railway's port; healthcheck passed (SUCCESS); domain generated. Hosted HTTP, data-read and header checks not executable here (egress policy) | Recorded only |
 
 ---
 
@@ -1827,6 +1828,29 @@ All times in this section are UTC on **2026-10-03**. Starting commit: `3f1f01afa
 - **Limitations:** the Deployment connector's `skip_elicitations` value was never readable; no confirmation hold occurred. The behavior limits above.
 - **Reproducibility:** the catalog, fingerprint, C-14 and C-11 checks are reproducible from repo, read-only; the window itself is recorded only.
 
+## Stage 4 frontend hosting (2026-10-03, 20:13 to 20:27)
+
+All times UTC on **2026-10-03**. Authorized by the owner: a new Railway project and service for this app, deploying `main` from the private repository, browser-safe Supabase variables, a generated `.up.railway.app` domain, and minimal post-deploy checks. No production database change, no sandbox mutation, no custom domain.
+
+### EVAL-092: Stage 4 Railway deployment
+- **Date:** 20:13 to 20:27.
+- **Target:** hosting (Railway), static. Read-only on Supabase (one `list_migrations`: 8 versions, as in EVAL-091; one read of the project URL and publishable keys).
+- **Repository:** `4a3b869` (DR-027: `server/static-server.mjs`, `railway.json`, Node 22 pin), validated before the push: 134 of 134 tests, typecheck, build, transport lint, artifact verifier, hygiene, Markdown, diff check.
+- **Railway resources (all new; the existing `proactive-curiosity` project wasn't read or changed):**
+  - project `ai-launch-readiness-console` (`6929c1a6-af4f-48c6-a41a-f918359ce1f1`), environment `production` (`11129244-674e-4fb4-a56a-ea655b14ac1e`), service `web` (`4b85fae8-b5da-422e-bbfe-e7305c241f4a`);
+  - source: the private repository `git-d3po/AI-Launch-Readiness-Console`, branch `main`. The first attempt to attach it (20:16) failed with "User does not have access to the repo"; it attached at 20:24 after the owner granted the Railway GitHub app access to this repository. The repository stays private;
+  - variables: exactly `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`, set before the first build. The key is the project's `sb_publishable_` key (role `anon`), read through the Supabase connector; no service-role key, secret key, password or connection string is configured. Neither value is in the repository;
+  - domain: `web-production-7381e.up.railway.app`, Railway-managed (TLS by Railway). No custom domain.
+- **Deployment `04479681-8a16-41e4-ac6e-35cb602708c1`:** commit `4a3b86914af834862c9e23a6df6ae4442743331d`, branch `main`.
+  - Build (Railpack 0.40.1): Node 22.23.2 from `engines`; `npm install` (74 packages); `npm run build` (`tsc --noEmit`, then `vite build`, "built in 532ms"). Railpack detected the custom start command and skipped its own static server.
+  - Start: `npm start`, logged "Serving dist/ on 0.0.0.0:8080; CSP report-only, connect-src https://<project-ref>.supabase.co": Railway's port, all interfaces, and the production Supabase origin.
+  - Healthcheck on `/` (`railway.json`) passed; status SUCCESS.
+  - One npm warning at start ("npm warn config production Use `--omit=dev` instead.") comes from Railpack's npm configuration and has no effect on the server.
+- **Not executed: the hosted checks.** This session's network policy denies `*.up.railway.app` and `*.supabase.co` (CONNECT 403 from the egress proxy), and the web-fetch tool is blocked by the same policy. So the hosted routes, a missing-asset 404, the production data read, the browser console, the 390 px view and the live response headers weren't observed from here. Railway's HTTP log for the service was empty at 20:27: no public request had been made.
+- **What does stand in for them:** the healthcheck shows the server answers `/` on Railway; the start log shows the configured `connect-src`; and the same server and build were checked locally (DR-027 tests: fallback, 404s, traversal, headers; a local run of the production build: routes, headers, and no CSP report-only violation or script error in a headless browser).
+- **Not run, by scope:** no sandbox write, status change or reset; no Stage 5 walkthrough.
+- **Reproducibility:** recorded only.
+
 ## Not run (don't claim these)
 
 This list reflects the state after the deployment-path decision (about 14:25).
@@ -1843,6 +1867,8 @@ This list reflects the state after the deployment-path decision (about 14:25).
 **Update (2026-10-03, EVAL-089, EVAL-090):** the DR-026 reconciliation (renames, the stored-statement artifact, the corrective, the transport lint, the C-11 script) is verified locally on both a production replica and a clean replay. Not run: any of it on live. The corrective, M-5 and M-6 aren't applied, and nothing is hosted.
 
 **Update (2026-10-03, EVAL-091):** Stage 2 is applied to live (8 versions) and verified there read-only: C-11 PASS with the one M-4 exception, catalog 17 of 17, C-14 7 of 7, fingerprint equal to the Stage 2 baseline, the advisor listing only the documented items. Still not run on live: any sandbox function call, B-4, concurrency and integrity (I19; local only, EVAL-089), and the app in a browser. Nothing is hosted.
+
+**Update (2026-10-03, EVAL-092):** the frontend is deployed on Railway from `main` (`4a3b869`) and passes Railway's healthcheck. Not yet observed: the hosted routes, data read, console and response headers (this session's network policy blocks the domain), and anything in Stage 5. The URL isn't shared.
 
 - **Production deployment of Stage 1 (as of 14:25; superseded, see the update above):** the migration was **not** applied to live, so live hasn't been verified after it. The deployment path is designated (DR-024), and the deployment is a separate, authorized run. On live, the catalog test passing 17 of 17, the fingerprint matching EVAL-045, and the 0028/0029 advisor lints clearing are expected but **unverified**.
 - **GitHub integration settings:** not applicable. No GitHub integration has ever been connected (EVAL-060). The earlier entry here assumed one might exist.
