@@ -123,6 +123,7 @@ migrations (`supabase/tests/local_roles.sql` first, for the `anon` and `authenti
 | EVAL-084 | 2026-10-02, after EVAL-083 | A5: "Visitor" label on listed evidence and decisions | local, build | 5 new tests, 65/65 in total; 24/24 local browser checks | Reproducible from repo (unit tests); browser walkthrough recorded only |
 | EVAL-085 | 2026-10-02, after EVAL-084 | A7: header sandbox reset; launch list keeps content on a failed refresh | local, build | 14 new tests, 79/79 in total; 41/41 local browser checks | Reproducible from repo (unit tests); browser walkthrough recorded only |
 | EVAL-086 | 2026-10-02, after EVAL-085 | A7 follow-up: reset usable with a gate sheet open; a P0001 rejection refreshes; focus kept below the sticky header | local, build | 80/80 tests; 56/56 local browser checks; 14/14 keyboard-focus checks | Reproducible from repo (unit tests); browser walkthrough recorded only |
+| EVAL-087 | 2026-10-02, after EVAL-086 | Lovable presentation pass imported (DR-004 A2) | local, build | 80/80 tests; 131/131 presentation checks on real local data; A7 56/56 and focus 14/14 re-run | Reproducible from repo (unit tests); browser walkthrough recorded only |
 
 ---
 
@@ -1659,6 +1660,22 @@ Starting commit: `da583ab0188b9e6b34de99046909cecdbb8bc03b`, clean. Specificatio
   - **Skip link:** from a page scrolled 400 px, it is visible on top when focused, and Enter goes to `#main` with the page heading below the header (128 px at 1440, 198.5 px at 390).
   - **Regressions:** no horizontal scroll; the sheet still starts exactly at the header's bottom edge; with the sheet open, "Reset sandbox" opens and cancels and the sheet's Close works, at both widths. The 56-check walkthrough was rerun with the fix and passed 56 of 56. The first focus run flagged only the skip link, which the probe wrongly measured; the probe was corrected and rerun on a rebuilt database.
 - **Result:** typecheck exit 0; build succeeds.
+- **Reproducibility:** the unit tests are reproducible from repo; the browser walkthrough is recorded only.
+
+### EVAL-087: Lovable presentation pass, imported and validated
+- **Date:** 2026-10-02, after EVAL-086 and the deployment runbook.
+- **Target:** local (Vitest; a Vite dev server against a local PostgREST on a disposable database built from all seven migrations, as `anon`) and build. No production call, and no change under `src/lib/`, `src/domain/`, `supabase/`, packages or configuration.
+- **Import (DR-004 A2):** the archive held exactly six presentation files; all were imported after review. Reconciled on import: the sandbox banner's accent border became neutral (DR-012); five About sentences were corrected: provenance is on evidence and decisions, not "every record"; source links aren't "verified"; the tests aren't run "for each release"; the reset has a 5-minute cooldown; and a marketing phrase was removed. DR-012 A1 records the owner-approved accent and red uses. Every new class was found in the built CSS, including the inset accent shadow and the `max-sm:` and `nth-child` variants.
+- **Tests:** 80 of 80 (no test changed); typecheck exit 0; build succeeds.
+- **Browser walkthrough (recorded only), 131 of 131,** at 1440 and 390 px, light and dark, on real seed data:
+  - **Launches:** canonical and sandbox rows; blocker counts equal the database's (10), emphasized when nonzero; row hover; visible focus; header text contrast 6.76:1 or better; no page-level horizontal scroll.
+  - **Canonical overview:** the summary strip shows Owner, Target, Stage and Readiness with their real values (2 by 2 on phones); the "Try this in the sandbox" link to `/launches/2` with the read-only explanation; 10 blocking gates; gates and risks tables; three numbered stages with exactly one `aria-current="step"`; four decisions without "Visitor" labels; headings h1 then h2.
+  - **Sandbox:** the banner names the header reset and holds no link or button; no sandbox link or read-only text there.
+  - **Gate sheets:** the canonical sheet's boxed read-only note and sandbox link, no form controls, the seed https source still a link with the A6 `rel`, and the header reset clickable over the sheet. The sandbox sheet's metadata box, both hints, and headings h2 then h3.
+  - **About:** renders with "About" marked current, headings h1 then h2, focusable link below the sticky header, no horizontal scroll.
+  - **Contrast:** submit buttons 6.56:1 light and 8.16:1 dark; "Current" 6.56:1 and 8.16:1; the sandbox link 6.16:1 or better; About's muted text 7:1 or better.
+  - **Writes:** an empty submit sends nothing; a control character shows "Could not save (code 23514)"; a saved item is labeled "Visitor" with its source as plain text; a status change refetches with a "Visitor" decision; a reset from the restyled sheet removes both and restores the status.
+- **Regression:** on a rebuilt database the EVAL-086 walkthrough passed 56 of 56 and the keyboard-focus probe 14 of 14.
 - **Reproducibility:** the unit tests are reproducible from repo; the browser walkthrough is recorded only.
 
 ## Not run (don't claim these)

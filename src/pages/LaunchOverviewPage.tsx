@@ -117,12 +117,12 @@ function Overview({ overview }: { overview: LaunchOverview }) {
       )}
       <header>
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-[15px] font-semibold tracking-tight break-words">{launch.name}</h1>
+          <h1 className="text-lg font-semibold tracking-tight break-words">{launch.name}</h1>
           {hasGates && (
             <StatusChip tone={readiness.status === 'Ready' ? 'success' : 'danger'}>{readiness.status}</StatusChip>
           )}
         </div>
-        <dl className="mt-2 flex flex-wrap gap-x-6 gap-y-1">
+        <dl className="mt-3 grid grid-cols-2 divide-line overflow-hidden rounded-md border border-line bg-card sm:grid-cols-4 sm:divide-x">
           <Meta label="Owner">{launch.owner}</Meta>
           <Meta label="Target">{formatTargetDate(launch.targetDate)}</Meta>
           <Meta label="Stage">
@@ -136,14 +136,15 @@ function Overview({ overview }: { overview: LaunchOverview }) {
         </dl>
         {launch.sourceLaunchId === null && overview.sandboxLaunchId !== null && (
           // Canonical pages show no write controls and link to the sandbox launch (A4).
-          <p className="mt-2">
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1">
             <Link
               to={`/launches/${overview.sandboxLaunchId}`}
-              className={`rounded-sm text-accent underline-offset-2 hover:underline ${focusRing}`}
+              className={`rounded-md border border-accent/40 bg-accent-subtle px-2.5 py-1 font-medium text-accent hover:border-accent ${focusRing}`}
             >
               Try this in the sandbox
             </Link>
-          </p>
+            <span className="text-muted">This launch is read-only. The sandbox is a shared copy you can change.</span>
+          </div>
         )}
       </header>
 
@@ -153,7 +154,7 @@ function Overview({ overview }: { overview: LaunchOverview }) {
         ) : readiness.blocking.length === 0 ? (
           <Panel>Nothing blocks this launch. Every required gate is Passed or Waived.</Panel>
         ) : (
-          <ul className="divide-y divide-line rounded-md border border-line bg-card">
+          <ul className="divide-y divide-line rounded-md border border-line border-l-4 border-l-red-600/70 bg-card dark:border-l-red-400/70">
             {readiness.blocking.map((gate) => (
               <li key={gate.id} className="px-3 py-2.5">
                 <div className="flex flex-wrap items-baseline gap-x-3">
@@ -202,12 +203,19 @@ function Overview({ overview }: { overview: LaunchOverview }) {
         {overview.stages.length === 0 ? (
           <Panel>No rollout stages defined.</Panel>
         ) : (
-          <ol className="grid gap-2 sm:grid-cols-3">
-            {overview.stages.map((s) => (
-              <li key={s.stage} className="rounded-md border border-line bg-card px-3 py-2.5">
+          <ol className="grid overflow-hidden rounded-md border border-line bg-card sm:grid-cols-3 sm:divide-x divide-line max-sm:divide-y">
+            {overview.stages.map((s, i) => (
+              <li
+                key={s.stage}
+                aria-current={overview.currentStage?.stage === s.stage ? 'step' : undefined}
+                className={`px-3 py-2.5 ${overview.currentStage?.stage === s.stage ? 'shadow-[inset_0_2px_0_var(--accent)]' : ''}`}
+              >
                 <div className="flex items-baseline justify-between gap-2">
-                  <span className="font-medium">{s.stage}</span>
-                  {overview.currentStage?.stage === s.stage && <span className="text-muted">Current</span>}
+                  <span className="font-medium">
+                    <span className="mr-1.5 text-muted">{i + 1}</span>
+                    {s.stage}
+                  </span>
+                  {overview.currentStage?.stage === s.stage && <span className="font-medium text-accent">Current</span>}
                 </div>
                 <p className="mt-0.5 text-muted">{s.status}</p>
               </li>
@@ -281,7 +289,7 @@ function GatesTable({ launchId, gates }: { launchId: number; gates: OverviewGate
   );
 }
 
-const th = 'px-3 py-2 font-medium whitespace-nowrap';
+const th = 'px-3 py-2 text-[12px] font-medium whitespace-nowrap';
 const td = 'px-3 py-2.5 whitespace-nowrap';
 
 function GateLink({ launchId, gate }: { launchId: number; gate: OverviewGate }) {
@@ -309,8 +317,8 @@ function TableBox({ caption, children }: { caption: string; children: ReactNode 
 
 function Section({ title, count, children }: { title: string; count?: number; children: ReactNode }) {
   return (
-    <section className="mt-6">
-      <h2 className="font-semibold">
+    <section className="mt-8">
+      <h2 className="text-[14px] font-semibold tracking-tight">
         {title}
         {count !== undefined && <span className="ml-1.5 font-normal text-muted">{count}</span>}
       </h2>
@@ -321,9 +329,9 @@ function Section({ title, count, children }: { title: string; count?: number; ch
 
 function Meta({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex gap-1.5">
-      <dt className="text-muted">{label}</dt>
-      <dd>{children}</dd>
+    <div className="min-w-0 border-line px-3 py-2 max-sm:odd:border-r max-sm:[&:nth-child(n+3)]:border-t">
+      <dt className="text-[12px] text-muted">{label}</dt>
+      <dd className="mt-0.5 font-medium break-words">{children}</dd>
     </div>
   );
 }

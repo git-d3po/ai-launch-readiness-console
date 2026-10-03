@@ -168,7 +168,7 @@ function GateBody({
       {refreshError && <Alert title="Could not refresh this gate.">{refreshError}</Alert>}
       {isSandbox && <SandboxBanner />}
       {!isSandbox && sandboxLaunchId !== null && (
-        <p>
+        <p className="rounded-md border border-line bg-card px-3 py-2">
           This gate is read-only.{' '}
           <Link
             to={`/launches/${sandboxLaunchId}`}
@@ -183,7 +183,7 @@ function GateBody({
         <StatusChip tone={gateTone(gate.status)}>{gate.status}</StatusChip>
         <span className="text-muted">{gate.required ? 'Required' : 'Optional'}</span>
       </div>
-      <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-[8rem_1fr]">
+      <dl className="grid gap-x-4 gap-y-2 rounded-md border border-line bg-card px-3 py-3 sm:grid-cols-[7rem_1fr]">
         <dt className="text-muted">Category</dt>
         <dd>{gate.category}</dd>
         <dt className="text-muted">Owner</dt>
@@ -212,14 +212,14 @@ function GateBody({
 
       {isSandbox && (
         <>
-          <SheetSection title="Add evidence">
+          <SheetSection title="Add evidence" hint="Saved to the shared sandbox and labeled Visitor.">
             {gate.visitorEvidenceCount >= visitorEvidenceCap ? (
               <Note>This gate has reached its 10 visitor evidence items. Reset the sandbox to start again.</Note>
             ) : (
               <EvidenceForm gateId={gate.id} onSaved={onSaved} />
             )}
           </SheetSection>
-          <SheetSection title="Change status">
+          <SheetSection title="Change status" hint="Records a decision with your rationale. Passed requires evidence.">
             {gate.visitorDecisionCount >= visitorDecisionCap ? (
               <Note>This gate has reached its 20 visitor decisions. Reset the sandbox to start again.</Note>
             ) : (
@@ -446,17 +446,20 @@ function SubmitButton({ saving, children }: { saving: boolean; children: ReactNo
     <button
       type="submit"
       disabled={saving}
-      className={`self-start rounded-md border border-line bg-card px-3 py-1.5 font-medium disabled:cursor-wait disabled:opacity-60 ${focusRing}`}
+      className={`self-start rounded-md border border-accent bg-accent px-3 py-1.5 font-medium text-card hover:opacity-90 disabled:cursor-wait disabled:opacity-60 ${focusRing}`}
     >
       {saving ? 'Saving…' : children}
     </button>
   );
 }
 
-function SheetSection({ title, children }: { title: string; children: ReactNode }) {
+function SheetSection({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
   return (
-    <section className="flex flex-col gap-2">
-      <h3 className="font-medium">{title}</h3>
+    <section className="flex flex-col gap-2 border-t border-line pt-4">
+      <div>
+        <h3 className="text-[14px] font-semibold tracking-tight">{title}</h3>
+        {hint && <p className="mt-0.5 text-muted">{hint}</p>}
+      </div>
       {children}
     </section>
   );

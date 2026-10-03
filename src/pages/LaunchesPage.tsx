@@ -63,6 +63,10 @@ export function LaunchesPage() {
             <StatusChip tone="success">All ready</StatusChip>
           ))}
       </div>
+      <p className="mt-1 max-w-2xl text-muted">
+        Each launch moves through gates. Readiness is computed from gate status and evidence. Open a launch to review
+        its gates, risks, rollout and decisions.
+      </p>
       <div className="mt-4">
         {state.status === 'success' && state.refreshError && (
           <div
@@ -93,7 +97,7 @@ export function LaunchesPage() {
   );
 }
 
-const th = 'px-3 py-2 font-medium whitespace-nowrap';
+const th = 'px-3 py-2 text-[12px] font-medium whitespace-nowrap';
 const td = 'px-3 py-2.5 whitespace-nowrap';
 
 function LaunchesTable({ rows }: { rows: LaunchRow[] }) {
@@ -102,7 +106,7 @@ function LaunchesTable({ rows }: { rows: LaunchRow[] }) {
     <div className="overflow-x-auto rounded-md border border-line bg-card">
       <table className="w-full text-left">
         <caption className="sr-only">Launches with readiness computed from their gates</caption>
-        <thead className="border-b border-line text-muted">
+        <thead className="border-b border-line bg-page/60 text-muted">
           <tr>
             <th scope="col" className={th}>Launch</th>
             <th scope="col" className={th}>Owner</th>
@@ -115,7 +119,7 @@ function LaunchesTable({ rows }: { rows: LaunchRow[] }) {
         </thead>
         <tbody className="divide-y divide-line">
           {rows.map((row) => (
-            <tr key={row.id}>
+            <tr key={row.id} className="hover:bg-page/60">
               <th scope="row" className={`${td} font-medium`}>
                 <Link
                   to={`/launches/${row.id}`}
@@ -138,7 +142,7 @@ function LaunchesTable({ rows }: { rows: LaunchRow[] }) {
                 {row.currentStage ? `${row.currentStage.stage} · ${row.currentStage.status}` : 'All stages completed'}
               </td>
               <td className={td}>{row.readiness.label}</td>
-              <td className={`${td} text-right`}>{row.readiness.blocking.length}</td>
+              <td className={`${td} text-right ${row.readiness.blocking.length === 0 ? 'text-muted' : 'font-medium'}`}>{row.readiness.blocking.length}</td>
               <td className={td}>
                 <StatusChip tone={row.readiness.status === 'Ready' ? 'success' : 'danger'}>{row.readiness.status}</StatusChip>
               </td>

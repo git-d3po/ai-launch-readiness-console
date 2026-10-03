@@ -29,7 +29,7 @@ and this log disagree, this log is authoritative.
 | DR-001 | Postgres is the trust boundary | Accepted | Implemented (`03a4666`, `9c65e6c`) |
 | DR-002 | Readiness is computed, never stored | Accepted | Implemented (`03a4666`) |
 | DR-003 | The current rollout stage is derived, not stored | Accepted | Implemented (`03a4666`) |
-| DR-004 | Build in this repository against our own Supabase project, not through Lovable | Accepted; amended by A2 (Lovable as a UI workspace) | Implemented (all code commits). A2: in force for the Stage 2 UI; no Lovable work has started |
+| DR-004 | Build in this repository against our own Supabase project, not through Lovable | Accepted; amended by A2 (Lovable as a UI workspace) | Implemented (all code commits). A2: in force; one Lovable presentation pass imported under its review gate (EVAL-087) |
 | DR-005 | Supabase project configuration | Accepted | In place since project creation |
 | DR-006 | No authentication in Phase 1; `anon` and `authenticated` have identical privileges | Accepted (extended by DR-020; its R-8 assumption retired by DR-022) | Implemented (`03a4666`) |
 | DR-007 | The seeded launch has 16 gates, not 17 | Accepted | Implemented (`03a4666`, brief corrected in `9c65e6c`) |
@@ -37,7 +37,7 @@ and this log disagree, this log is authoritative.
 | DR-009 | Migration files carry the versions Supabase recorded | Accepted | Implemented (`9c65e6c`) |
 | DR-010 | Revoke EXECUTE on `rls_auto_enable` from PUBLIC, `anon` and `authenticated` | Accepted | Implemented (`ddadd36`) |
 | DR-011 | The publishable key comes from environment configuration; the live key was never fetched | Accepted | Implemented (`e8e71ef`) |
-| DR-012 | One accent color; emerald, amber and red reserved for status | Accepted | Implemented (`1572708`) |
+| DR-012 | One accent color; emerald, amber and red reserved for status | Accepted; amended by A1 (presentation pass) | Implemented (`1572708`); A1 (EVAL-087) |
 | DR-013 | Trust model C: read-only canonical launch plus a disposable shared sandbox (Phase 2B D1) | Accepted | Stage 1 part applied to live and verified there (EVAL-065, EVAL-066). Stage 2 database part (M-4 to M-6) in the repository and verified locally (EVAL-071 to EVAL-078), not applied to live. Stage 2 UI (A1, A3 to A9) in the repository and verified locally (EVAL-079 to EVAL-086), not hosted |
 | DR-014 | Reset applies only to the sandbox, with a 5-minute cooldown (D2) | Accepted | Stage 1 part applied to live and verified there (EVAL-065, EVAL-066). `sandbox_reset()` in the repository and verified locally (EVAL-071, EVAL-073; reset-vs-write race and isolation fixed in EVAL-075 to EVAL-078), not applied to live. A7's header reset in the repository and verified locally (EVAL-085, EVAL-086) |
 | DR-015 | All five evidence types in the sandbox, always marked as visitor evidence (D3) | Accepted | Database part (`origin`, `sandbox_add_evidence`) in the repository and verified locally (EVAL-071, EVAL-077, EVAL-078), not applied to live; A5's "Visitor" label in the repository (EVAL-084) |
@@ -186,6 +186,7 @@ and this log disagree, this log is authoritative.
   - **Publishing:** Lovable's publish and deploy aren't used for this project. Hosting is a separate decision, subject to R-12 and R-13.
   - **Review gate for each import:** the diff stays within the approved presentation files; no `dangerouslySetInnerHTML` (I16); no third-party scripts or remote fonts (R-12's CSP); Vitest, typecheck and build pass.
   - **Order:** the database changes and the repository's data layer come first, then Lovable UI, then review and import, then tests. Lovable designs against an existing contract, never ahead of it.
+  - **First import (2026-10-02, after the deployment runbook; EVAL-087):** one Lovable presentation pass, six files (`src/App.tsx`, `SandboxBanner`, a new static `AboutPage`, `GateSheet`, `LaunchOverviewPage`, `LaunchesPage`), reviewed and imported here. Presentation and copy only: no change to data loading, queries, sandbox calls, readiness, provenance, source rendering, refresh or reset. Reconciled on import: the banner's accent border was made neutral (DR-012), and the About copy was corrected where it overstated the code. Validated against a disposable local Stage 2 database, never against production.
 
 ## DR-005: Supabase project configuration
 
@@ -372,6 +373,7 @@ and this log disagree, this log is authoritative.
 - **Assumptions:** none.
 - **Consequences:** the brief's "neutral/info = blue" is replaced by accent-only use of blue.
 - **Evidence:** EVAL-013: minimum text contrast 5.58:1; reduced motion turns the only animation off.
+- **Amendment A1 (2026-10-02, presentation pass, approved by the owner; EVAL-087):** the accent also marks the primary submit buttons in the gate sheet's forms and the current rollout stage (with `aria-current="step"`). Red also edges the "Blocking launch" list, which is the reason for the Not ready status. Every other rule above is unchanged: the sandbox banner and provenance labels stay neutral, and amber is still unused.
 
 ---
 
