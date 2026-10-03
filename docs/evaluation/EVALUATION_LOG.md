@@ -129,6 +129,7 @@ migrations (`supabase/tests/local_roles.sql` first, for the `anon` and `authenti
 | EVAL-090 | 2026-10-03, 19:04 to 19:23 | DR-026 repository validation; the tool path decoded the same four escape texts in a file write | local, build, static | Lint 8/8; 116/116 tests; lint mutants 5/5 caught; typecheck, build; hygiene found and fixed 4 raw bidi characters before commit | Reproducible from repo; the reproduction recorded only |
 | EVAL-091 | 2026-10-03, 19:32 to 19:56 | Stage 2 production window resumed: Stage 1 + M-4 preflight, corrective, M-5, M-6, V1 to V9 | live read-only, live write | P1 to P8 pass; three applies, each verified at once by C-11; 8 versions, C-11 PASS with the one M-4 exception; catalog 17/17; C-14 7/7; fingerprint = Stage 2 baseline; canonical data unchanged | Catalog, fingerprint, C-14 and C-11 reproducible from repo, read-only; the window recorded only |
 | EVAL-092 | 2026-10-03, 20:13 to 20:27 | Stage 4: Railway project and service, first deployment of `main` | hosting, static | Built and deployed `4a3b869`; server started on Railway's port; healthcheck passed (SUCCESS); domain generated. Hosted HTTP, data-read and header checks not executable here (egress policy) | Recorded only |
+| EVAL-093 | 2026-10-03, after EVAL-092 | Stage 4 hosted verification: routes, data read, console, headers, 390 px (owner-observed) | hosting (owner's browser) | All pass as observed by the owner; Stage 4 complete | Recorded only (owner-observed) |
 
 ---
 
@@ -1851,6 +1852,21 @@ All times UTC on **2026-10-03**. Authorized by the owner: a new Railway project 
 - **Not run, by scope:** no sandbox write, status change or reset; no Stage 5 walkthrough.
 - **Reproducibility:** recorded only.
 
+### EVAL-093: Stage 4 hosted verification, owner-observed
+- **Date:** 2026-10-03, after EVAL-092.
+- **Target:** the hosted frontend, read-only, in the owner's own browser. **Owner-observed:** this session couldn't reach `*.up.railway.app` or `*.supabase.co` (the egress proxy refused the CONNECT with 403, from the container and from the web-fetch tool, both before and after the owner's network change), so Claude observed none of the results below. They are recorded as the owner reported them.
+- **Runtime under test:** Railway deployment `04479681-8a16-41e4-ac6e-35cb602708c1`, commit `4a3b86914af834862c9e23a6df6ae4442743331d` (EVAL-092). `main` is at `b48911d`, which differs from it only in documentation; no redeploy was made to align them.
+- **Railway-generated evidence (EVAL-092):** build succeeded (Node 22.23.2, `npm run build`); `npm start` started the server on Railway's port with `connect-src` set to the production Supabase origin; the healthcheck on `/` passed; the domain was generated, Railway-managed TLS.
+- **Owner-observed results:**
+  - **Routes:** `/launches` rendered with real production launch data; `/about` rendered; the deep link `/launches/2/gates/30` loaded the app with the gate side sheet open, not a Railway 404; `/assets/x.js` returned the server's "Not found" response, not the app. `/` had already passed the healthcheck.
+  - **Console:** with DevTools open, `/launches` reloaded with no red JavaScript errors and no CSP messages, and production data kept loading.
+  - **Headers** on the live `/launches` document: `200 OK` over HTTPS, with `Strict-Transport-Security: max-age=31536000`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy: camera=(), microphone=(), geolocation=()`, and `Content-Security-Policy-Report-Only`. Its `connect-src` names the production Supabase origin (`https://<project-ref>.supabase.co`) and no localhost or development origin.
+  - **About 390 px (device emulation):** `/launches` rendered, the header and navigation stayed usable, and the gate table scrolled inside its own container without breaking the page; `/about` wrapped correctly, with no clipping, overlap or page-level horizontal overflow.
+- **Result:** Stage 4's hosted checks pass, as observed by the owner. With EVAL-092, **Stage 4 is complete**: the frontend is hosted and verified, not publicly released or shared.
+- **Not run (Stage 5):** adding evidence, changing a gate status, resetting the sandbox, the cooldown, and the full canonical and sandbox walkthrough of §20 stage 5. No sandbox data was changed. R-13's clean Report-Only pass also belongs to the smoke test, which exercises the write paths.
+- **Limitations:** owner-observed; no screenshot, HAR or header capture is preserved in the repository. The R-12 headers are also covered by the server's committed tests (DR-027).
+- **Reproducibility:** recorded only.
+
 ## Not run (don't claim these)
 
 This list reflects the state after the deployment-path decision (about 14:25).
@@ -1869,6 +1885,8 @@ This list reflects the state after the deployment-path decision (about 14:25).
 **Update (2026-10-03, EVAL-091):** Stage 2 is applied to live (8 versions) and verified there read-only: C-11 PASS with the one M-4 exception, catalog 17 of 17, C-14 7 of 7, fingerprint equal to the Stage 2 baseline, the advisor listing only the documented items. Still not run on live: any sandbox function call, B-4, concurrency and integrity (I19; local only, EVAL-089), and the app in a browser. Nothing is hosted.
 
 **Update (2026-10-03, EVAL-092):** the frontend is deployed on Railway from `main` (`4a3b869`) and passes Railway's healthcheck. Not yet observed: the hosted routes, data read, console and response headers (this session's network policy blocks the domain), and anything in Stage 5. The URL isn't shared.
+
+**Update (2026-10-03, EVAL-093):** the hosted checks passed, as observed by the owner in their own browser: routes, the production data read, the console, the R-12 headers with the report-only CSP, and 390 px. Stage 4 is complete. Still not run on live: any sandbox write or reset, and the Stage 5 walkthrough. The URL isn't shared.
 
 - **Production deployment of Stage 1 (as of 14:25; superseded, see the update above):** the migration was **not** applied to live, so live hasn't been verified after it. The deployment path is designated (DR-024), and the deployment is a separate, authorized run. On live, the catalog test passing 17 of 17, the fingerprint matching EVAL-045, and the 0028/0029 advisor lints clearing are expected but **unverified**.
 - **GitHub integration settings:** not applicable. No GitHub integration has ever been connected (EVAL-060). The earlier entry here assumed one might exist.

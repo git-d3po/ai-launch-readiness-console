@@ -524,7 +524,7 @@ inside a rolled-back transaction.
 | Gate | Condition | Status |
 |---|---|---|
 | R-11 | A3 to A7 shipped | Built in the repository and verified locally (EVAL-081 to EVAL-086); **not shipped**: nothing is hosted. The database part is applied to live and verified (EVAL-091). Closes only after §20 stages 3 to 5: database deployed and verified, frontend hosted, smoke test passed |
-| R-12 | **Production headers set:**<br>• CSP `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src https://<project>.supabase.co; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'`<br>• `X-Content-Type-Options: nosniff`<br>• `Referrer-Policy: strict-origin-when-cross-origin`<br>• `Permissions-Policy: camera=(), microphone=(), geolocation=()`<br>• HTTPS with HSTS | Implemented in the server (DR-027) and deployed (EVAL-092); not yet observed on the hosted responses |
+| R-12 | **Production headers set:**<br>• CSP `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src https://<project>.supabase.co; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'`<br>• `X-Content-Type-Options: nosniff`<br>• `Referrer-Policy: strict-origin-when-cross-origin`<br>• `Permissions-Policy: camera=(), microphone=(), geolocation=()`<br>• HTTPS with HSTS | Implemented in the server (DR-027), deployed (EVAL-092), and present on the live responses, owner-observed (EVAL-093); the CSP is still report-only, so R-12 closes when R-13's pass lets it be enforced |
 | R-13 | One clean Report-Only CSP pass before the header is enforced | Not started |
 
 ## 12. Unresolved verification items
@@ -988,7 +988,7 @@ Each stage needs the previous one complete. **No stage authorizes the next:** st
 | 1 | **Repository ready.** Stage 2 database (M-4 to M-6) and UI (A1, A3 to A9) in the repository and verified locally (EVAL-071 to EVAL-087). | The owner, by authorizing stage 2 | Owner decisions recorded or explicitly deferred (below); authorization given |
 | 2 | **Database deployment authorized.** A dated, explicit owner authorization for one Stage 2 database window, including how the connector's confirmation is handled. The first 2026-10-03 window applied M-4 only and stopped on a C-11 mismatch (EVAL-088). **Complete:** the second window, under a new authorization, applied the corrective, M-5 and M-6 (EVAL-091). | The deployer, by running the preflight and then the applications | Preflight passed; each migration applied once with its per-step checks passed (since DR-026: the corrective, M-5 and M-6) |
 | 3 | **Database deployed and verified.** Post-deployment checks passed; files renamed and parity proven; evidence committed. **Complete** (EVAL-091). | The owner, by authorizing stage 4 | Every post-deployment check passes |
-| 4 | **Frontend deployed, not released.** Built with the live values, hosted with the SPA fallback, HTTPS and headers, CSP in Report-Only. The URL isn't shared. **Current stage: frontend hosted, not yet publicly shared** (2026-10-03, EVAL-092). Deployed and healthy on Railway; the hosted route, data-read and header checks are pending, because this session can't reach the domain. | The owner, by authorizing stage 5 | Hosted build loads; headers present |
+| 4 | **Frontend deployed, not released.** Built with the live values, hosted with the SPA fallback, HTTPS and headers, CSP in Report-Only. The URL isn't shared. **Complete: frontend hosted and hosted verification complete; not yet publicly released or shared** (2026-10-03, EVAL-092, EVAL-093; the hosted checks are owner-observed). Next: stage 5, which needs its own authorization. | The owner, by authorizing stage 5 | Hosted build loads; headers present |
 | 5 | **Production smoke test complete.** The first exercise of the public API path; mutates sandbox data only. | The owner, by authorizing stage 6 | Every smoke step passes; sandbox reset at the end; canonical data unchanged |
 | 6 | **Public release.** CSP enforced after a clean Report-Only pass; R-11 to R-13 closed; URL shared. | Not applicable | Gates closed and recorded |
 
@@ -1181,6 +1181,7 @@ The seven security parts equal catalog check 15's embedded values. **Superseded:
 - The URL stays unshared until stage 6.
 - **Implementation (DR-027):** `npm start` runs `server/static-server.mjs`, a dependency-free Node server for `dist/` with the SPA fallback, real 404s for missing assets, the R-12 headers with the CSP report-only, and `connect-src` taken from `VITE_SUPABASE_URL` at start-up. `railway.json` sets the build, start command and a healthcheck on `/`.
 - **Deployed (2026-10-03, EVAL-092):** Railway project `ai-launch-readiness-console`, service `web`, environment `production`, from `main` at `4a3b869`; Node 22.23.2; healthcheck on `/` passed; Railway-generated domain (recorded in EVAL-092, not shared). Pending: the hosted checks of the routes, the production data read, the console and the R-12 headers, from a browser that can reach the domain.
+- **Hosted verification (2026-10-03, EVAL-093, owner-observed):** the routes including the deep link and a missing-asset 404, the production data read, a clean console, the R-12 headers with the report-only CSP (`connect-src` the production Supabase origin, no development origin), and 390 px all pass. Stage 4 is complete; stage 5 is pending.
 
 ### Production smoke test (stage 5, not yet run)
 
@@ -1203,3 +1204,5 @@ After a clean Report-Only pass, enforce the CSP (R-13, then R-12); close R-11; r
 R-1, R-2 (Stage 1), R-4, R-5, R-7, R-9 and R-10 are met; R-8 is retired. Still open: **R-3** and **R-6** for Stage 2 (after V4 to V7), **R-11** (stages 3 to 5), **R-12** and **R-13** (stages 4 and 6). Repository readiness (stage 1) closes none of them.
 
 **Update (2026-10-03, EVAL-091):** R-3 and R-6 are met for Stage 2. Still open: **R-11** (stages 4 and 5), **R-12** and **R-13** (stages 4 and 6).
+
+**Update (2026-10-03, EVAL-093):** stage 4 is complete. R-12's headers are live, with the CSP report-only. Still open: **R-11** (stage 5), **R-13** and the CSP enforcement that closes **R-12** (stages 5 and 6).

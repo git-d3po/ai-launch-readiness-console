@@ -7,7 +7,7 @@ Postgres is the trust boundary. Visitors read a canonical launch they can't chan
 ## Status
 
 - **Stage 2 is implemented in this repository:** the sandbox database migrations M-4 to M-6 and the UI (gate sheet, sandbox forms, "Visitor" labels, safe source links, the global sandbox reset, an About page). It is verified locally against disposable databases. `main` is the release branch; development happens on `claude/phase1-schema` and reaches `main` through reviewed pull requests.
-- **Hosted, not shared:** the frontend is deployed on Railway from `main` (Stage 4, EVAL-092). Its URL isn't public yet; the hosted smoke test (Stage 5) comes first.
+- **Hosted, not shared:** the frontend is deployed on Railway from `main` and its hosted checks passed (Stage 4, EVAL-092 and EVAL-093). Its URL isn't public yet; the hosted smoke test (Stage 5) comes first.
 - **The connected production database is at Stage 2:** migrations M-4 to M-6 and a corrective migration are applied and verified (2026-10-03, EVAL-091 in the [evaluation log](docs/evaluation/EVALUATION_LOG.md)).
 
 ## Stack
