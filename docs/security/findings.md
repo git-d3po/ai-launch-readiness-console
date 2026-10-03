@@ -31,6 +31,8 @@ Audit 1's original rating is kept beside the revised one.
 | SEC-006 | Default privileges give API roles privileges on future tables | H5 | High | Low | Yes (facts) | Yes | Yes | **Yes** (EVAL-065, EVAL-066) |
 | SEC-007 | Functions that `postgres` creates are executable by PUBLIC by default | None (new in Stage 1) | n/a | Low (latent) | Yes | Yes: no default change; explicit revoke per function (DR-023) | Nothing to change in Stage 1; guarded by catalog check 9 | n/a (nothing to apply) |
 
+**Stage 2 (2026-10-02, about 17:11):** the Stage 2 database controls for SEC-001, SEC-003 and SEC-004 (provenance, the sandbox functions, caps, database-set identity and dates, I14 text rules) are in the repository and verified locally (EVAL-071 to EVAL-074; re-verified after the review fixes, EVAL-075 to EVAL-078). They aren't applied to live, and the Stage 2 UI controls aren't built.
+
 **Status after the Stage 1 deployment (2026-10-02, about 16:29):**
 - **Applied to live:** migration `20261002160901_stage1_security_hardening`, the same file authored as `20261002115318_...`, was applied once through the Supabase connector (DR-024) at 16:09 (EVAL-065). The repository file is renamed to that version (DR-009, EVAL-067); the closeout commit carries the rename.
 - **Verified on live, read-only (EVAL-066):** catalog test 17 of 17; all 12 fingerprint parts equal EVAL-045, seed intact; the security advisor shows no lints, so 0028 and 0029 are cleared.
@@ -133,6 +135,7 @@ Audit 1's original rating is kept beside the revised one.
     - deletes visitor rows on sandbox launches only
     - restores sandbox gate statuses from their source gates
     - enforces a 5-minute cooldown
+    - locks every sandbox gate before deleting, so a visitor write in flight can't survive it (EVAL-075)
     - uses no TRUNCATE and no `RESTART IDENTITY`
 - **Rejected alternatives:**
   - **Keep it public with constraints:** no constraint makes a table-wide TRUNCATE safe for anonymous callers. RLS doesn't apply to TRUNCATE, and the function's owner owns the tables.
@@ -175,7 +178,7 @@ Audit 1's original rating is kept beside the revised one.
 - **Remediation (specified):**
   - **Stage 1, M-1:** the public write bound becomes zero.
   - **Stage 2 (DR-018):**
-    - per-gate caps of 10 visitor evidence rows and 20 visitor decisions, enforced inside the sandbox functions under the gate's row lock
+    - per-gate caps of 10 visitor evidence rows and 20 visitor decisions, enforced inside the sandbox functions under the gate's row lock, at READ COMMITTED; the functions refuse higher isolation levels, where the lock alone wouldn't hold the cap (EVAL-077)
     - a 5-minute reset cooldown
     - canonical gates accept 0
     - worst case: 480 visitor rows, about 2 MB

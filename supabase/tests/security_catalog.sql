@@ -19,21 +19,23 @@
 --       (table-level or column-level, on any relation)
 --    7  no REFERENCES, TRIGGER or (Postgres 17+) MAINTAIN
 --    8  no USAGE, SELECT or UPDATE on any sequence
---    9  no EXECUTE on any function (Stage 1 allowlist: empty)
+--    9  EXECUTE on exactly the Stage 2 allowlist: the three sandbox functions
 --   10  every view uses security_invoker
 --   11  every SECURITY DEFINER function pins its search_path
 --   12  no SECURITY DEFINER application function uses dynamic EXECUTE
 --   13  anon and authenticated hold identical privileges
 --   14  tables that postgres creates later grant nothing to the API roles or PUBLIC
---   15  the security-relevant fingerprint parts match the Stage 1 build
+--   15  the security-relevant fingerprint parts match the Stage 2 build
 --   16  the API roles cannot create objects in schema public
 --   17  every relation and function in public is owned by postgres, so the
 --       default privileges of check 14 are the ones that apply
 --
--- Checks 9 and 15 describe Stage 1. The Stage 2 sandbox functions will change
--- them on purpose; update their expected values in the same commit as that
--- migration. Check 15 copies seven parts of supabase/tests/fingerprint.sql;
--- keep the two in step.
+-- Checks 9 and 15 describe Stage 2 (DR-025). Stage 1's allowlist was empty;
+-- Stage 2 allows exactly sandbox_add_evidence, sandbox_set_gate_status and
+-- sandbox_reset, once each for each API role. Check 15's expected values are
+-- the Stage 2 build's. Change either only in the same commit as the migration
+-- that changes it. Check 15 copies seven parts of
+-- supabase/tests/fingerprint.sql; keep the two in step.
 
 with
 cfg as (
@@ -76,8 +78,11 @@ seq_granted as (
   where c.relnamespace = 'public'::regnamespace and c.relkind = 'S'
     and has_sequence_privilege(a.oid, c.oid, p.priv)
 ),
+fn_allowlist(proname) as (
+  values ('sandbox_add_evidence'), ('sandbox_set_gate_status'), ('sandbox_reset')
+),
 fn_exec as (
-  select a.rolname, p.oid::regprocedure::text as fn
+  select a.rolname, p.proname, p.oid::regprocedure::text as fn
   from api_roles a cross join pg_proc p
   where p.pronamespace = 'public'::regnamespace
     and has_function_privilege(a.oid, p.oid, 'EXECUTE')
@@ -115,12 +120,12 @@ fp_cgr as (select string_agg(format('%s.%s %s %s', table_name, column_name, priv
 fp_fns as (select string_agg(format('%s def=%s acl=%s secdef=%s cfg=%s', p.oid::regprocedure, md5(pg_get_functiondef(p.oid)), coalesce(p.proacl::text, 'NULL'), p.prosecdef, p.proconfig), E'\n' order by p.oid::regprocedure::text) s from pg_proc p where pronamespace = 'public'::regnamespace and proname <> 'rls_auto_enable'),
 fp_vws as (select string_agg(format('%s def=%s opts=%s', c.relname, md5(pg_get_viewdef(c.oid)), c.reloptions), E'\n' order by relname) s from pg_class c where relnamespace = 'public'::regnamespace and relkind = 'v'),
 fp(part, actual, expected) as (
-  select 'constraints', md5(coalesce((select s from fp_cons), '')), 'e21c19ff0d76992a123dac84cf6e9414'
+  select 'constraints', md5(coalesce((select s from fp_cons), '')), 'a7f08cda3a69929594e9dad491fac570'
   union all select 'policies', md5(coalesce((select s from fp_pol), '')), '5413a6d3b0520ccf75b53f4f7067bef1'
-  union all select 'rls+owners', md5(coalesce((select s from fp_rls), '')), '416b404f44bc87e538217610f1a1afb1'
+  union all select 'rls+owners', md5(coalesce((select s from fp_rls), '')), '212e4cf60f3f93c8149028d284bd0282'
   union all select 'table_grants', md5(coalesce((select s from fp_tgr), '')), '81ed597a2d217bdefda59babdc03008a'
   union all select 'column_write_grants', md5(coalesce((select s from fp_cgr), '')), 'd41d8cd98f00b204e9800998ecf8427e'
-  union all select 'functions', md5(coalesce((select s from fp_fns), '')), '8389103e34beaefa36fa084837e7320b'
+  union all select 'functions', md5(coalesce((select s from fp_fns), '')), '849220530a3d4b56a35f4e154a6d19e6'
   union all select 'views', md5(coalesce((select s from fp_vws), '')), '6c60d69e83dedcece4f5b8c698c2ba7e'
 ),
 checks(check_no, name, ok, detail) as (
@@ -165,11 +170,19 @@ checks(check_no, name, ok, detail) as (
       'granted: ' || (select string_agg(rolname || ' ' || relname || ' ' || priv, ', ') from seq_granted))
 
   union all
-  select 9, 'API roles can execute no function (Stage 1 allowlist is empty)',
-    not exists (select 1 from fn_exec),
+  select 9, 'API roles can execute exactly the three sandbox functions (Stage 2 allowlist)',
+    (select count(*) from api_roles) = 2
+      and not exists (select 1 from fn_exec f where f.proname not in (select proname from fn_allowlist))
+      and not exists (select 1 from api_roles a cross join fn_allowlist w
+                      where (select count(*) from fn_exec f where f.rolname = a.rolname and f.proname = w.proname) <> 1),
     concat_ws('; ',
       format('%s functions checked', (select count(*) from pg_proc where pronamespace = 'public'::regnamespace)),
-      'executable: ' || (select string_agg(rolname || ' ' || fn, ', ' order by rolname, fn) from fn_exec))
+      'executable: ' || (select string_agg(rolname || ' ' || fn, ', ' order by rolname, fn) from fn_exec),
+      'unexpected: ' || (select string_agg(rolname || ' ' || fn, ', ' order by rolname, fn) from fn_exec f
+                         where f.proname not in (select proname from fn_allowlist)),
+      'not exactly once: ' || (select string_agg(a.rolname || ' ' || w.proname, ', ' order by a.rolname, w.proname)
+                               from api_roles a cross join fn_allowlist w
+                               where (select count(*) from fn_exec f where f.rolname = a.rolname and f.proname = w.proname) <> 1))
 
   union all
   select 10, 'Every public view uses security_invoker',
@@ -222,7 +235,7 @@ checks(check_no, name, ok, detail) as (
              'none, global or in public')
 
   union all
-  select 15, 'Security-relevant fingerprint parts match the Stage 1 build',
+  select 15, 'Security-relevant fingerprint parts match the Stage 2 build',
     not exists (select 1 from fp where actual is distinct from expected),
     coalesce('differs: ' || (select string_agg(part, ', ') from fp where actual is distinct from expected),
              format('%s of 7 parts match', (select count(*) from fp where actual = expected)))

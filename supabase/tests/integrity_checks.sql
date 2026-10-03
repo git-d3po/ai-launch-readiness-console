@@ -8,6 +8,12 @@
 
 -- No DROP or DELETE: each check upserts its row, so a re-run in the same
 -- session overwrites the previous results.
+--
+-- Stage 2 (DR-025): gate lookups and check 5's absolute counts are scoped to
+-- the canonical launch (source_gate_id / source_launch_id is null), because the
+-- sandbox copy repeats every gate title. The expected values are unchanged.
+-- Checks 1 to 4 and 6 compare decision counts before and after, which the
+-- sandbox doesn't affect.
 create temp table if not exists check_results (
   check_no int primary key,
   name text not null,
@@ -22,7 +28,7 @@ declare
   v_decisions bigint;
   v_err text;
 begin
-  select id into v_gate from public.gates where title = 'Production monitoring and alerting defined';
+  select id into v_gate from public.gates where title = 'Production monitoring and alerting defined' and source_gate_id is null;
   select count(*) into v_decisions from public.decisions;
 
   begin
@@ -52,7 +58,7 @@ declare
   v_err_missing text;
   v_err_blank text;
 begin
-  select id into v_gate from public.gates where title = 'Rollback procedure documented and rehearsed';
+  select id into v_gate from public.gates where title = 'Rollback procedure documented and rehearsed' and source_gate_id is null;
   select count(*) into v_decisions from public.decisions;
 
   begin
@@ -88,7 +94,7 @@ declare
   v_decision_id bigint;
   v_row public.decisions%rowtype;
 begin
-  select id into v_gate from public.gates where title = 'Production monitoring and alerting defined';
+  select id into v_gate from public.gates where title = 'Production monitoring and alerting defined' and source_gate_id is null;
   select count(*) into v_decisions from public.decisions;
 
   v_decision_id := public.set_gate_status(v_gate, 'In progress', 'Monitoring design has started', 'AI Program Lead');
@@ -116,7 +122,7 @@ declare
   v_gate bigint;
   v_err text;
 begin
-  select id into v_gate from public.gates where title = 'Required stakeholder sign-offs recorded';
+  select id into v_gate from public.gates where title = 'Required stakeholder sign-offs recorded' and source_gate_id is null;
 
   set local role anon;
   begin
@@ -148,7 +154,7 @@ declare
   v_exit_id bigint;
   v_waiver constant text := 'Assist is not scheduled; agent training is deferred until it is.';
 begin
-  select id into v_gate from public.gates where title = 'Support agents trained on the Assist workflow';
+  select id into v_gate from public.gates where title = 'Support agents trained on the Assist workflow' and source_gate_id is null;
   select count(*) into v_decisions from public.decisions;
 
   -- A blank waiver rationale still changes nothing.
@@ -208,10 +214,13 @@ begin
                           and exists (select 1 from public.evidence e where e.gate_id = g.id)),
          count(*) filter (where required and status not in ('Passed', 'Waived'))
     into v_gates, v_required, v_passed, v_blocking
-  from public.gates g;
+  from public.gates g
+  where g.source_gate_id is null;
 
-  select count(*) into v_decisions from public.decisions;
-  select status into v_monitoring from public.gates where title = 'Production monitoring and alerting defined';
+  select count(*) into v_decisions
+  from public.decisions d
+  where d.launch_id in (select id from public.launches where source_launch_id is null);
+  select status into v_monitoring from public.gates where title = 'Production monitoring and alerting defined' and source_gate_id is null;
 
   insert into check_results values (
     5,

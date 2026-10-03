@@ -13,6 +13,11 @@
 -- as a permission check. A rejected source passes only when the
 -- evidence_source_https constraint is the one that rejected it.
 --
+-- Stage 2 (DR-025): the B-1 read counts and every gate lookup by title are
+-- scoped to the canonical launch, because the sandbox copy repeats the seed.
+-- The expected values are unchanged. Sandbox behavior is B-4, in
+-- supabase/tests/stage2_sandbox_behavior.sql.
+--
 -- The file is ASCII-only on purpose: every control, invisible or non-ASCII
 -- character in a test value is written as an E'' escape, never as a raw
 -- character, so no bidirectional or invisible text hides in the source.
@@ -88,10 +93,14 @@ begin
     begin
       execute format('set local role %I', v_role);
       select format('launches=%s gates=%s evidence=%s risks=%s decisions=%s stages=%s current_stage=%s',
-        (select count(*) from public.launches), (select count(*) from public.gates),
-        (select count(*) from public.evidence), (select count(*) from public.risks),
-        (select count(*) from public.decisions), (select count(*) from public.rollout_stages),
-        (select count(*) from public.launch_current_stage))
+        (select count(*) from public.launches l where l.source_launch_id is null),
+        (select count(*) from public.gates g join public.launches l on l.id = g.launch_id where l.source_launch_id is null),
+        (select count(*) from public.evidence e join public.gates g on g.id = e.gate_id
+           join public.launches l on l.id = g.launch_id where l.source_launch_id is null),
+        (select count(*) from public.risks r join public.launches l on l.id = r.launch_id where l.source_launch_id is null),
+        (select count(*) from public.decisions d join public.launches l on l.id = d.launch_id where l.source_launch_id is null),
+        (select count(*) from public.rollout_stages r join public.launches l on l.id = r.launch_id where l.source_launch_id is null),
+        (select count(*) from public.launch_current_stage c join public.launches l on l.id = c.launch_id where l.source_launch_id is null))
       into v_counts;
       reset role;
     exception when others then
@@ -137,8 +146,8 @@ begin
           'truncate public.risks', 'truncate public.decisions', 'truncate public.rollout_stages']),
         ('row locks (SELECT ... FOR UPDATE)', array['select 1 from public.gates for update']),
         ('set_gate_status', array[
-          $q$select public.set_gate_status((select id from public.gates where title = 'Required stakeholder sign-offs recorded'), 'Passed', 'Forged approval', 'Trust & Safety Lead')$q$,
-          $q$select public.set_gate_status((select id from public.gates where title = 'Required stakeholder sign-offs recorded'), 'Waived', 'Forged waiver', 'Trust & Safety Lead', 'Not needed')$q$]),
+          $q$select public.set_gate_status((select id from public.gates where title = 'Required stakeholder sign-offs recorded' and source_gate_id is null), 'Passed', 'Forged approval', 'Trust & Safety Lead')$q$,
+          $q$select public.set_gate_status((select id from public.gates where title = 'Required stakeholder sign-offs recorded' and source_gate_id is null), 'Waived', 'Forged waiver', 'Trust & Safety Lead', 'Not needed')$q$]),
         ('reset_demo_data', array['select public.reset_demo_data()']),
         ('CREATE TABLE in public', array['create table public.zz_api_role_probe (x int)'])
       ) c(label, statements)
@@ -186,7 +195,7 @@ begin
   select count(*) into v_before from public.decisions;
   begin
     v_id := public.set_gate_status(
-      (select id from public.gates where title = 'Production monitoring and alerting defined'),
+      (select id from public.gates where title = 'Production monitoring and alerting defined' and source_gate_id is null),
       'In progress', 'Owner path still works', 'AI Program Lead');
   exception when others then
     v_err := sqlstate || ' ' || sqlerrm;

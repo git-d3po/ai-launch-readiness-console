@@ -14,6 +14,8 @@ steps, the expected result, what is true **today**, and the specified tests that
 
 **Stage 1 deployment (about 16:21):** Stage 1 is now **applied to live** (`20261002160901`, EVAL-065) and verified there with the read-only catalog test (17 of 17) and fingerprint (equal to EVAL-045), with no 0028 or 0029 lints (EVAL-066). Every "not applied to live" label below is superseded for the Stage 1 parts, which are now applied to live and verified read-only. The behavior steps themselves still run only on local databases (I19); on live, the catalog privilege checks answer them without a write.
 
+**Stage 2 (about 17:11):** the database part of the Stage 2 extensions in scenarios A to G is implemented and verified **locally**: `stage2_sandbox_behavior.sql` (B-4, 29 checks), `sandbox_invariants.sql` (C-14) and `stage2_concurrency.sh` (EVAL-071 to EVAL-074; re-verified after the review fixes, EVAL-075 to EVAL-078). It isn't applied to live, and the UI parts (A3 to A7) aren't built, so the Stage 2 labels below still read "specification" for the live product.
+
 **Rules for every behavior scenario** (Phase 2B invariant I19):
 - Run only against a local or ephemeral database built from this repository, never against production.
 - Run each step as `anon` **and** as `authenticated`, inside a transaction that rolls back.
@@ -81,6 +83,7 @@ Evidence IDs (EVAL-NNN) are in [`EVALUATION_LOG.md`](EVALUATION_LOG.md).
   - The canonical fingerprint stays unchanged.
   - A second call within 5 minutes is rejected.
   - It uses no TRUNCATE, so the canonical tables take no table-wide lock.
+  - A visitor write uncommitted when the reset starts is removed by it, and one that starts during the reset lands after it (`stage2_concurrency.sh`, races 3 and 4).
 - **Today (recorded):**
   - EVAL-016: the advisor lists `reset_demo_data` as executable by `anon`.
   - EVAL-017 (P2): visitor rows were erased.
@@ -102,6 +105,7 @@ Evidence IDs (EVAL-NNN) are in [`EVALUATION_LOG.md`](EVALUATION_LOG.md).
   3. Two sessions race at one below the cap: exactly one succeeds.
   4. A direct INSERT into `evidence` is denied.
   5. The total of visitor rows across the 16 sandbox gates never exceeds 480.
+  6. A visitor call at REPEATABLE READ or SERIALIZABLE is refused, so the cap can't be counted from an old snapshot (`stage2_concurrency.sh`, checks 6 and 8).
 - **Today (recorded):**
   - EVAL-017 (P3): 20,010 rows from one statement.
   - EVAL-032: 6,000 incompressible rows, 13 MB, in 0.61 s.

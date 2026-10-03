@@ -28,19 +28,29 @@
 --   views                md5 of each view definition and its options (security_invoker)
 --   enums                every enum type with its labels in order
 --   user_triggers        non-internal triggers on public tables ('none' when there are none)
---   seed_data            row content of the six tables: ids, key columns, md5 of long text.
---                        Timestamps (created_at, updated_at, decided_at) are excluded because
---                        they record when the seed ran.
+--   canonical_data       row content of the canonical launch (source_launch_id is null) and its
+--                        rows in the six tables: ids, key columns, md5 of long text. Timestamps
+--                        (created_at, updated_at, decided_at) are excluded because they record
+--                        when the seed ran. Sandbox rows are excluded: visitors change them by
+--                        design. Sandbox writes, status changes and resets must never change
+--                        this part (DR-025).
 --
 -- Not covered: other schemas, extensions, default privileges (pg_default_acl), role
 -- memberships, database or role settings, sequence values, event triggers, Auth and
 -- Data API configuration. md5 is a change detector here, not a security control.
--- The live comparison also needs the live database to be at the seed, since
--- seed_data hashes the table contents.
+-- The live comparison also needs the canonical launch to be at the seed, since
+-- canonical_data hashes its contents.
+--
+-- Stage 2 (DR-025): canonical_data replaced the Stage 1 part seed_data, which
+-- hashed every row and so would change with sandbox activity. It is the same
+-- expression restricted to canonical rows. On a database at the seed, its first
+-- Stage 2 value equals EVAL-045's seed_data value, because M-5 leaves canonical
+-- rows untouched; that is a continuity observation, not a permanent requirement.
 --
 -- Check 15 of supabase/tests/security_catalog.sql copies seven of these parts
 -- (constraints, policies, rls+owners, table_grants, column_write_grants,
--- functions, views); keep the two in step. EVAL-045 records the Stage 1 hashes.
+-- functions, views); keep the two in step. EVAL-045 records the Stage 1 hashes;
+-- the Stage 2 baseline is recorded in docs/evaluation/EVALUATION_LOG.md.
 
 with
 cols as (select string_agg(format('%s.%s %s notnull=%s default=%s identity=%s', c.relname, a.attname, format_type(a.atttypid, a.atttypmod), a.attnotnull, coalesce(pg_get_expr(d.adbin, d.adrelid), ''), a.attidentity), E'\n' order by c.relname, a.attnum) s
@@ -57,13 +67,15 @@ fns as (select string_agg(format('%s def=%s acl=%s secdef=%s cfg=%s', p.oid::reg
 vws as (select string_agg(format('%s def=%s opts=%s', c.relname, md5(pg_get_viewdef(c.oid)), c.reloptions), E'\n' order by relname) s from pg_class c where relnamespace = 'public'::regnamespace and relkind = 'v'),
 enm as (select string_agg(format('%s %s', t.typname, (select string_agg(enumlabel, '|' order by enumsortorder) from pg_enum e where e.enumtypid = t.oid)), E'\n' order by t.typname) s from pg_type t where typnamespace = 'public'::regnamespace and typtype = 'e'),
 trg as (select coalesce(string_agg(format('%s %s', tgrelid::regclass, tgname), E'\n' order by tgname), 'none') s from pg_trigger where not tgisinternal and tgrelid in (select oid from pg_class where relnamespace = 'public'::regnamespace)),
+canon_launch as (select id from public.launches where source_launch_id is null),
+canon_gate as (select id from public.gates where launch_id in (select id from canon_launch)),
 dat as (select concat_ws(E'\n',
-   (select string_agg(format('%s|%s|%s|%s|%s', id, name, owner, target_date, md5(description)), ';' order by id) from public.launches),
-   (select string_agg(format('%s|%s|%s|%s|%s|%s|%s|%s|%s', id, launch_id, category, title, owner, required, status, md5(pass_criteria), waiver_rationale), ';' order by id) from public.gates),
-   (select string_agg(format('%s|%s|%s|%s|%s|%s|%s', id, gate_id, type, title, md5(summary), source, recorded_on), ';' order by id) from public.evidence),
-   (select string_agg(format('%s|%s|%s|%s|%s|%s|%s|%s', id, launch_id, title, likelihood, impact, owner, status, gate_id), ';' order by id) from public.risks),
-   (select string_agg(format('%s|%s|%s|%s|%s|%s|%s|%s|%s', id, launch_id, kind, decision, md5(rationale), decided_by, gate_id, risk_id, waiver_rationale), ';' order by id) from public.decisions),
-   (select string_agg(format('%s|%s|%s|%s', id, launch_id, stage, status), ';' order by id) from public.rollout_stages)) s)
+   (select string_agg(format('%s|%s|%s|%s|%s', id, name, owner, target_date, md5(description)), ';' order by id) from public.launches where id in (select id from canon_launch)),
+   (select string_agg(format('%s|%s|%s|%s|%s|%s|%s|%s|%s', id, launch_id, category, title, owner, required, status, md5(pass_criteria), waiver_rationale), ';' order by id) from public.gates where launch_id in (select id from canon_launch)),
+   (select string_agg(format('%s|%s|%s|%s|%s|%s|%s', id, gate_id, type, title, md5(summary), source, recorded_on), ';' order by id) from public.evidence where gate_id in (select id from canon_gate)),
+   (select string_agg(format('%s|%s|%s|%s|%s|%s|%s|%s', id, launch_id, title, likelihood, impact, owner, status, gate_id), ';' order by id) from public.risks where launch_id in (select id from canon_launch)),
+   (select string_agg(format('%s|%s|%s|%s|%s|%s|%s|%s|%s', id, launch_id, kind, decision, md5(rationale), decided_by, gate_id, risk_id, waiver_rationale), ';' order by id) from public.decisions where launch_id in (select id from canon_launch)),
+   (select string_agg(format('%s|%s|%s|%s', id, launch_id, stage, status), ';' order by id) from public.rollout_stages where launch_id in (select id from canon_launch))) s)
 select 'columns' as part, md5(s) from cols union all
 select 'constraints', md5(s) from cons union all
 select 'indexes', md5(s) from idx union all
@@ -75,5 +87,5 @@ select 'functions', md5(s) from fns union all
 select 'views', md5(s) from vws union all
 select 'enums', md5(s) from enm union all
 select 'user_triggers', md5(s) from trg union all
-select 'seed_data', md5(s) from dat
+select 'canonical_data', md5(s) from dat
 order by 1;

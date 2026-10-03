@@ -105,6 +105,16 @@ migrations (`supabase/tests/local_roles.sql` first, for the `anon` and `authenti
 | EVAL-066 | 16:11 to 16:14 | Stage 1 post-deployment validation on live | live read-only | Catalog 17 of 17; fingerprint 12 of 12 equal to EVAL-045; no security advisor lints | Catalog and fingerprint reproducible from repo; advisors recorded only |
 | EVAL-067 | 16:17 to 16:21 | DR-009 rename; amendment A1 cleanup | static | Pure rename (`R100`), contents unchanged; Deployment connector removed by the owner | Recorded only |
 | EVAL-068 | 16:28 | Stage 1: C-11 migration parity on live | live read-only, static | PASS: all 4 stored statements equal their files; `20261002160901` md5 `f66a638dfb93554ad4f1a2bac0826304`, 2205 characters | Recorded only (EVAL-022's query) |
+| EVAL-069 | 16:59 to 17:01 | Stage 2: fresh PG17 cluster; Stage 1 baseline before changes | local | Catalog 17/17, behavior 24/24, integrity 6/6, seed_data = EVAL-045 | Reproducible from repo |
+| EVAL-070 | 17:05 | Stage 2: tests first, run on the Stage 1 build | local | Every new and scoped test fails on missing Stage 2 objects; catalog 16/17 (check 9) | Reproducible from repo (at `da583ab` plus the test changes) |
+| EVAL-071 | 17:08 to 17:10 | Stage 2: fresh replay of all 7 migrations; catalog, C-14, Stage 1 behavior, B-4 | local | 17/17, 7/7, 24/24, 29/29 | Reproducible from repo |
+| EVAL-072 | 17:09 | Stage 2: fingerprint baseline | local | Two fresh builds identical; canonical_data = EVAL-045 seed_data; 6 schema parts changed by design | Reproducible from repo |
+| EVAL-073 | 17:10 to 17:11 | Stage 2: integrity, concurrency, function ACLs, app checks | local, build | 6/6; 2/2 races; only the 3 sandbox functions are public; 11/11, typecheck, build | Reproducible from repo |
+| EVAL-074 | 17:13 to 17:16 | Stage 2: raw bidi characters in M-4 found and fixed; full re-run | static, local | Found in 6 lines, replaced with escapes; all suites pass again | Reproducible from repo |
+| EVAL-075 | 2026-10-02, after EVAL-074 | Stage 2: reset-vs-write race and P0001 wording, found in review and fixed | local | Pre-fix reset left 2 visitor rows; fixed reset removes them; REPEATABLE READ gap found and closed | Reproducible from repo (races); scratch stress and isolation probes recorded only |
+| EVAL-076 | 2026-10-02, after EVAL-075 | Stage 2: full re-run after the EVAL-075 fixes | local, build | 17/17, 7/7, 24/24, 29/29, 6/6, 4 races + check 5; canonical_data unchanged; 11/11, typecheck, build | Reproducible from repo |
+| EVAL-077 | 2026-10-02, after EVAL-076 | Stage 2: visitor functions refuse isolation levels above READ COMMITTED | local | Pre-guard: 11th item and Passed without evidence at both levels; guarded: refused, 9/9 | Reproducible from repo (checks 6 to 9); scratch probes recorded only |
+| EVAL-078 | 2026-10-02, after EVAL-077 | Stage 2: full re-run after EVAL-077 | local, build | 17/17, 7/7, 24/24, 29/29, 6/6, concurrency 9/9 (x2, plus 3 earlier runs); stress 0 deadlocks; canonical_data unchanged; 11/11, typecheck, build | Reproducible from repo; stress recorded only |
 
 ---
 
@@ -1377,12 +1387,162 @@ Starting commit: `f1e52790f80b960109a7f9b465b90e2228026cef`, clean, in sync with
   - The call returned at once, with no confirmation hold. No other production call was made.
 - **Reproducibility:** recorded only. The query above repeats it.
 
+## Stage 2 local implementation (2026-10-02, 16:59 to 17:11)
+
+Starting commit: `da583ab0188b9e6b34de99046909cecdbb8bc03b`, clean. Specification: DR-025 and DR-004 amendment A2. **Nothing in this section touched the live project:** every database here is a disposable local one.
+
+### EVAL-069: Fresh PG17 cluster; Stage 1 baseline before any change
+- **Date:** 16:59 to 17:01.
+- **Target:** local. A new Postgres 17.10 cluster (the EVAL-038 binaries, `--locale-provider=icu --icu-locale=en-US`, port 5433), database built from `local_roles.sql` and the 4 Stage 1 migrations.
+- **Result:** catalog 17 of 17; Stage 1 behavior 24 of 24; integrity 6 of 6; fingerprint `seed_data` `dc85e31b82116a9fa79adaac8399aa90`, equal to EVAL-045.
+- **Reproducibility:** reproducible from repo.
+
+### EVAL-070: Tests first, on the Stage 1 build
+- **Date:** 17:05.
+- **Target:** local, the EVAL-069 database, with the Stage 2 test changes and no Stage 2 migration.
+- **Result:**
+  - Catalog: 16 of 17. Check 9 fails: none of the three sandbox functions exists.
+  - `stage2_sandbox_behavior.sql`, `sandbox_invariants.sql`, `integrity_checks.sql` and `fingerprint.sql` stop on the missing `source_gate_id` / `source_launch_id` columns.
+  - `stage1_behavior.sql`: 19 of 24, for the same reason.
+  - So every new or scoped test depends on the Stage 2 schema it describes.
+- **Reproducibility:** reproducible from repo.
+
+### EVAL-071: Fresh replay of all 7 migrations; catalog, C-14, Stage 1 behavior, B-4
+- **Date:** 17:08 to 17:10.
+- **Target:** local, a fresh database built from `local_roles.sql` and the 7 migrations.
+- **Files** (md5, bytes):
+  - `20261002170823_sandbox_provenance.sql`: `23dd3270cdca77001fe2f9a86917d518`, 3739 (after the EVAL-074 fix)
+  - `20261002170824_sandbox_seed.sql`: `b6c04e38855362dc4d6d4cdd2be16a68`, 20949
+  - `20261002170825_sandbox_rpcs.sql`: `4eddf462523188fefba2098e46838b15`, 5921
+  - The versions are authored timestamps. The Supabase CLI isn't installed in this container, so the files were written directly. Production assigns the real versions (DR-024).
+- **Result:**
+  - **Catalog** (read-only): 17 of 17. Check 2: SELECT on exactly the 6 tables and the view, so `sandbox_state` is unreadable. Check 9: exactly the three sandbox functions, for both roles. Check 15: 7 of 7 against the Stage 2 baseline (EVAL-072).
+  - **C-14** (read-only): 7 of 7. One sandbox, 16 of 16 gates mapped, seed copies 10/10 evidence, 4/4 decisions, 6/6 risks, 3/3 stages.
+  - **Stage 1 behavior:** 24 of 24, the 41 https reject cases included.
+  - **B-4:** 29 of 29. Both roles add evidence and are refused canonical gates. Decisions are by "Sandbox visitor", origin `visitor`. The I8 rules hold through the sandbox. Caps reject the 11th item and the 21st decision. I14 and the https rule hold through the functions (12 of 12 cases). Direct writes, `sandbox_state` and every owner-only function are denied with 42501 for both roles. No function takes `origin`, `decided_by` or `recorded_on`. Canonical rows are byte-identical after 41 visitor writes and two resets. A reset restores a fresh copy; a second is refused with "Try again in 5 minutes."; after the cooldown, a second reset changes nothing. A failed sandbox rebuild rolls back the whole `reset_demo_data()` call, and `reset_demo_data()` rebuilds one fresh sandbox.
+- **Reproducibility:** reproducible from repo.
+
+### EVAL-072: Stage 2 fingerprint baseline
+- **Date:** 17:09.
+- **Target:** local, two independent fresh builds, read-only.
+- **Result:** the two builds are identical, 12 of 12.
+
+  | Part | Stage 2 md5 | vs EVAL-045 |
+  |---|---|---|
+  | canonical_data | `dc85e31b82116a9fa79adaac8399aa90` | Equal to `seed_data`: canonical rows untouched |
+  | column_write_grants | empty | Same |
+  | columns | `5ccb40dee76743f39a4925c451918d8b` | Changed (origin, source columns, sandbox_state) |
+  | constraints | `a7f08cda3a69929594e9dad491fac570` | Changed (links, composite keys, I14). First measured as `0887380c748bd9214f38e3d6d87310b4` before the EVAL-074 fix |
+  | enums | `340c40cc9480c4f6a58b865484673882` | Changed (`record_origin`) |
+  | functions | `fce65ee849d92f05c1319787a5c08633` | Changed (M-5, M-6) |
+  | indexes | `77508543fc9b1654352bd6731e735112` | Changed (unique keys) |
+  | policies | `5413a6d3b0520ccf75b53f4f7067bef1` | Same: no policy added |
+  | rls+owners | `212e4cf60f3f93c8149028d284bd0282` | Changed (`sandbox_state`) |
+  | table_grants | `81ed597a2d217bdefda59babdc03008a` | Same: no grant added |
+  | user_triggers | `334c4a4c42fdb79d7ebc3e73b517e6f8` | Same |
+  | views | `6c60d69e83dedcece4f5b8c698c2ba7e` | Same |
+
+  Catalog check 15 now expects the Stage 2 values for its seven parts.
+- **Reproducibility:** reproducible from repo.
+
+### EVAL-073: Integrity, concurrency, function ACLs, app checks
+- **Date:** 17:10 to 17:11.
+- **Target:** local and build.
+- **Result:**
+  - **Integrity suite** (fresh database): 6 of 6, scoped to the canonical launch. Afterwards C-14 is 7 of 7 and `canonical_data` is unchanged.
+  - **Concurrency** (`stage2_concurrency.sh`, a fresh disposable database, two sessions): 2 of 2. Two sessions adding the 10th visitor item: one succeeds, the other is refused by the cap, and the gate holds exactly 10. Two simultaneous resets: one succeeds, the other is refused by the cooldown.
+  - **Function ACLs:** `sandbox_add_evidence`, `sandbox_set_gate_status` and `sandbox_reset` are `{postgres=X, anon=X, authenticated=X}`. `reset_demo_data()`, the new 6-argument `set_gate_status` and `build_sandbox()` are `{postgres=X}` only. The 5-argument `set_gate_status` no longer exists. Every function pins `search_path = ''`. `sandbox_state` has RLS and no grant to `anon` or `authenticated`.
+  - **App:** Vitest 11 of 11, typecheck exit 0, build succeeds. No `src/` file changed.
+- **Reproducibility:** reproducible from repo.
+
+### EVAL-074: Raw bidi characters in M-4, found and fixed; full re-run
+- **Date:** 17:13 to 17:16.
+- **Target:** static, and local (two fresh builds).
+- **Finding:** a pre-commit encoding check found raw U+202A, U+202E, U+2066 and U+2069 characters in the six I14 constraint lines of `20261002170823_sandbox_provenance.sql`, where `\u` escapes were intended. The regex classes behaved correctly (EVAL-071 passed), but invisible bidirectional characters in source are the defect class of EVAL-055.
+- **Fix:** each raw character was replaced by its `\u` escape. The file is now ASCII-only. A scan of every changed and new file finds no raw bidi, invisible or control character.
+- **Re-run:** two fresh builds have identical fingerprints. Only the `constraints` part changed, to `a7f08cda3a69929594e9dad491fac570`, because the stored constraint text now holds the escapes. Catalog check 15 expects that value. Catalog 17/17, C-14 7/7, Stage 1 behavior 24/24, B-4 29/29 (the I14 cases included), integrity 6/6, concurrency 2/2, `canonical_data` `dc85e31b82116a9fa79adaac8399aa90`.
+- **Reproducibility:** reproducible from repo.
+
+### EVAL-075: Reset-vs-write race and P0001 wording, found in review and fixed
+- **Date:** 2026-10-02, after EVAL-074.
+- **Target:** local disposable databases, and static review.
+- **Finding 1 (I13):** a pre-commit review of the Stage 2 tree found that `sandbox_reset()` locked only `sandbox_state` before deleting. A visitor write that already held its gate lock, with its row uncommitted, was invisible to the delete's snapshot and survived the reset. EVAL-073's two races didn't cover that ordering.
+- **Fix:** `sandbox_reset()` now locks every sandbox gate `FOR UPDATE`, in id order, after `sandbox_state` and before the deletes (reconciliation record §19). Only gate rows are locked, not launches.
+- **Test:** `stage2_concurrency.sh` was rewritten so the order of events is enforced through `pg_stat_activity` and `pg_blocking_pids`, not sleeps, and gained race 3 (write held open, then reset) and race 4 (reset held open, then write). Against the pre-fix function, race 3 fails as expected:
+  ```
+  3 | Write then reset ... | FAIL | reset waited on visitor: no; reset held sandbox_state: no; reset queued on a gates row: f; visitor rows visible before commit=0; after: visitor rows=2, race rows=2, sandbox gates differing from source=1, canonical unchanged: yes
+  ```
+  With the fix, race 3 passes: the reset holds `sandbox_state`, waits on the visitor's gate row, and after the visitor commits deletes both rows and restores the gate.
+- **Finding 2 (adversarial pass on the fix):** at REPEATABLE READ the gate locks aren't enough. The reset's snapshot predates its lock wait, and a visitor that only added evidence locked the gate without updating it, so no serialization error fires. A scratch probe with the gate-locking function left 1 visitor row. API calls run at READ COMMITTED through PostgREST and no caller can choose another level, but a role or function setting could. `sandbox_reset()` now refuses any other level with P0001, and the concurrency script's check 5 expects that refusal at REPEATABLE READ and SERIALIZABLE, with nothing changed.
+- **Finding 3 (wording):** the M-6 header and reconciliation record §19 said every rule violation raises P0001, and DR-025 item 7 said every visitor-facing rule is a P0001 message. A rolled-back probe as `anon` showed the function rules raising P0001, a CHECK violation (control character, http source, title over 200) 23514, a null title 23502, and an unknown evidence type 22P02. All three texts now distinguish the function rules from the constraint errors. Error behavior is unchanged.
+- **Deadlock stress (scratch, recorded only):** 6 sessions making random visitor writes across all 16 sandbox gates (480 calls) and 2 sessions resetting in a loop (120 calls), run on the gate-locking function before the isolation check was added, which doesn't change the locks: 0 deadlocks. The only errors were the expected P0001 rules. A final reset left 0 visitor rows and every sandbox gate equal to its source.
+- **Catalog:** check 15's `functions` part changes with the new body: `fce65ee849d92f05c1319787a5c08633` to `04dd6a74f664cd7a92deb5d491a90e8f`. Every other fingerprint part is unchanged.
+- **Reproducibility:** the races and check 5 are reproducible from repo. The stress run and the REPEATABLE READ probe are recorded only.
+
+### EVAL-076: Full re-run after the EVAL-075 fixes
+- **Date:** 2026-10-02, after EVAL-075.
+- **Target:** local (fresh Postgres 17.10 builds of all 7 migrations), and build.
+- **Files** (md5, bytes): M-4 and M-5 are unchanged from EVAL-071. `20261002170825_sandbox_rpcs.sql` is now `251c97134247b56dc91acebaa8221a6c`, 7331 (EVAL-071 recorded `4eddf462523188fefba2098e46838b15`, 5921). The Stage 1 migration is unchanged: `f66a638dfb93554ad4f1a2bac0826304`, 2205.
+- **Result:**
+  - Two fresh builds have identical fingerprints. Against EVAL-072 only `functions` differs (EVAL-075); `canonical_data` is `dc85e31b82116a9fa79adaac8399aa90`.
+  - Catalog 17/17. C-14 7/7. Stage 1 behavior 24/24. B-4 29/29. The fingerprint is identical after the rolled-back suites.
+  - Integrity 6/6; afterwards C-14 is 7/7 and `canonical_data` is unchanged.
+  - Concurrency on a fresh build, run twice: races 1 to 4 and check 5 pass. Afterwards C-14 is 7/7 and `canonical_data` is unchanged.
+  - Function ACLs are unchanged: the three sandbox functions are `{postgres=X, anon=X, authenticated=X}`; `reset_demo_data()`, `set_gate_status` and `build_sandbox()` are `{postgres=X}`. Every function pins `search_path = ''`, and all are owned by `postgres`. `sandbox_state` has RLS and no grant to `anon` or `authenticated`.
+  - App: Vitest 11 of 11, typecheck exit 0, build succeeds.
+- **Reproducibility:** reproducible from repo.
+
+### EVAL-077: Visitor functions refuse isolation levels above READ COMMITTED
+- **Date:** 2026-10-02, after EVAL-076.
+- **Target:** local disposable databases.
+- **Question:** EVAL-075 made `sandbox_reset()` refuse REPEATABLE READ and SERIALIZABLE. Which visitor functions also depend on READ COMMITTED for a documented invariant?
+- **Probe (scratch, before the change):** lock-controlled two-session races on a fresh build. One session held a READ COMMITTED call open; the other ran at REPEATABLE READ or SERIALIZABLE and started before the first committed.
+
+  | Function and race | REPEATABLE READ | SERIALIZABLE | Needs the refusal |
+  |---|---|---|---|
+  | `sandbox_add_evidence`, racing the 10th item | 11 visitor items (I12 broken) | 11 visitor items | Yes |
+  | `sandbox_set_gate_status` to Passed, racing a reset that deleted the gate's only evidence | Gate Passed with 0 evidence (I8 broken) | Same | Yes |
+  | `sandbox_set_gate_status`, racing the 20th decision | 40001, 20 decisions | 40001, 20 decisions | Not for the cap: every accepted change updates the gate |
+
+  The cause is the one in EVAL-075. At the higher levels the snapshot is taken before the lock wait, and a gate row that another session only locked, without updating it, raises no serialization error.
+- **Change:** `sandbox_add_evidence` and `sandbox_set_gate_status` now refuse REPEATABLE READ and SERIALIZABLE with P0001 before taking any lock, as `sandbox_reset` does. The cap values, the locks and the READ COMMITTED behavior are unchanged. The owner-only `set_gate_status` is unchanged.
+- **Tests:** `stage2_concurrency.sh` gained checks 6 to 9, all lock-controlled:
+  - checks 6 and 7: each visitor function succeeds at READ COMMITTED and is refused at both higher levels, with visitor data byte-identical;
+  - races 8 and 9, at each higher level: the two probes above, now refused.
+
+  Race 1 also checks that both sides of the cap race ran at READ COMMITTED. On the pre-guard build, checks 6 to 9 fail and races 8 and 9 reproduce the probe (11 items; Passed with 0 evidence). On the guarded build, 9 of 9 pass on three consecutive runs.
+- **Catalog:** check 15's `functions` part changes to `849220530a3d4b56a35f4e154a6d19e6`.
+- **Correction to EVAL-075:** its remark that a PostgREST role or function setting could change the isolation level of API calls wasn't verified. The M-6 header and §19 now state only what holds: an API caller can't choose the level, and the server's configuration sets it.
+- **Reproducibility:** checks 6 to 9 are reproducible from repo. The probe table is recorded only.
+
+### EVAL-078: Full re-run after EVAL-077
+- **Date:** 2026-10-02, after EVAL-077. The suites below ran on the final files.
+- **Target:** local (fresh Postgres 17.10 builds of all 7 migrations), and build.
+- **Files** (md5, bytes): `20261002170825_sandbox_rpcs.sql` is now `283c1e59342ece367e58c693f33c029a`, 8698, the final file after a header comment was reworded (EVAL-077's correction); its function definitions are those measured in EVAL-077. M-4 and M-5 are unchanged from EVAL-071; the Stage 1 migration is unchanged (`f66a638dfb93554ad4f1a2bac0826304`, 2205).
+- **Result:**
+  - Two fresh builds have identical fingerprints. Against EVAL-072 only `functions` differs; `canonical_data` is `dc85e31b82116a9fa79adaac8399aa90`.
+  - Catalog 17/17 on both builds. C-14 7/7. Stage 1 behavior 24/24. B-4 29/29. The fingerprint is identical after the rolled-back suites. Integrity 6/6; afterwards C-14 is 7/7 and `canonical_data` is unchanged.
+  - Concurrency: 9 of 9 on two consecutive runs on a fresh build of the final files, after five earlier 9 of 9 runs on builds with the same function definitions (EVAL-077). Afterwards C-14 is 7/7 and `canonical_data` is unchanged.
+  - **Function ACLs:**
+    - The three sandbox functions are `{postgres=X, anon=X, authenticated=X}`. `reset_demo_data()`, `set_gate_status` and `build_sandbox()` are `{postgres=X}`.
+    - No function is executable by PUBLIC.
+    - Every function is owned by `postgres` and pins `search_path = ''`. Every function except `build_sandbox()` (SECURITY INVOKER) is SECURITY DEFINER.
+    - No migration uses EXECUTE.
+  - **RLS:** on for all seven tables; `sandbox_state` has no policy and no grant to `anon` or `authenticated`.
+  - **Stress (scratch, recorded only):**
+    - **Mixed run:** 480 visitor calls at READ COMMITTED on random gates, 80 calls at REPEATABLE READ or SERIALIZABLE (all 80 refused) and 120 resets. 0 deadlocks; no sandbox gate Passed without evidence, no visitor row on the canonical launch, canonical rows unchanged.
+    - **Cap run, no resets:** 8 sessions making 240 adds and 240 status changes on two gates, and 30 refused REPEATABLE READ adds. 0 deadlocks. Both gates stopped at exactly 10 visitor items and 20 visitor decisions, and each gate's status equals its latest decision. C-14 7/7.
+  - App: Vitest 11 of 11, typecheck exit 0, build succeeds.
+- **Reproducibility:** reproducible from repo, except the stress runs.
+
 ## Not run (don't claim these)
 
 This list reflects the state after the deployment-path decision (about 14:25).
 
 **Update (Stage 1 deployment, 16:29):** Stage 1 is now applied to live (EVAL-065) and verified there read-only: catalog 17 of 17, fingerprint equal to EVAL-045, no 0028 or 0029 lints (EVAL-066), and C-11 migration parity PASS (EVAL-068). Still not run on live after Stage 1:
 - The app in a browser against live.
+
+**Update (Stage 2, 17:11; re-verified after the Stage 2 review, EVAL-075 to EVAL-078):** Stage 2 (M-4 to M-6) is implemented and verified **locally only** (EVAL-069 to EVAL-078). Not run: any Stage 2 migration on live, any Stage 2 check on live, a committed end-to-end suite, and the Stage 2 UI, which isn't built.
 
 - **Production deployment of Stage 1 (as of 14:25; superseded, see the update above):** the migration was **not** applied to live, so live hasn't been verified after it. The deployment path is designated (DR-024), and the deployment is a separate, authorized run. On live, the catalog test passing 17 of 17, the fingerprint matching EVAL-045, and the 0028/0029 advisor lints clearing are expected but **unverified**.
 - **GitHub integration settings:** not applicable. No GitHub integration has ever been connected (EVAL-060). The earlier entry here assumed one might exist.

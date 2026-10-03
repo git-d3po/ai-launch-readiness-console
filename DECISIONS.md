@@ -29,7 +29,7 @@ and this log disagree, this log is authoritative.
 | DR-001 | Postgres is the trust boundary | Accepted | Implemented (`03a4666`, `9c65e6c`) |
 | DR-002 | Readiness is computed, never stored | Accepted | Implemented (`03a4666`) |
 | DR-003 | The current rollout stage is derived, not stored | Accepted | Implemented (`03a4666`) |
-| DR-004 | Build in this repository against our own Supabase project, not through Lovable | Accepted | Implemented (all code commits) |
+| DR-004 | Build in this repository against our own Supabase project, not through Lovable | Accepted; amended by A2 (Lovable as a UI workspace) | Implemented (all code commits). A2: in force for the Stage 2 UI; no Lovable work has started |
 | DR-005 | Supabase project configuration | Accepted | In place since project creation |
 | DR-006 | No authentication in Phase 1; `anon` and `authenticated` have identical privileges | Accepted (extended by DR-020; its R-8 assumption retired by DR-022) | Implemented (`03a4666`) |
 | DR-007 | The seeded launch has 16 gates, not 17 | Accepted | Implemented (`03a4666`, brief corrected in `9c65e6c`) |
@@ -38,18 +38,19 @@ and this log disagree, this log is authoritative.
 | DR-010 | Revoke EXECUTE on `rls_auto_enable` from PUBLIC, `anon` and `authenticated` | Accepted | Implemented (`ddadd36`) |
 | DR-011 | The publishable key comes from environment configuration; the live key was never fetched | Accepted | Implemented (`e8e71ef`) |
 | DR-012 | One accent color; emerald, amber and red reserved for status | Accepted | Implemented (`1572708`) |
-| DR-013 | Trust model C: read-only canonical launch plus a disposable shared sandbox (Phase 2B D1) | Accepted | Stage 1 part applied to live and verified there (EVAL-065, EVAL-066); Stage 2 not built |
-| DR-014 | Reset applies only to the sandbox, with a 5-minute cooldown (D2) | Accepted | Stage 1 part applied to live and verified there (EVAL-065, EVAL-066); Stage 2 not built |
-| DR-015 | All five evidence types in the sandbox, always marked as visitor evidence (D3) | Accepted | **Not yet implemented** |
-| DR-016 | The database sets visitor identity and evidence dates (D4) | Accepted | **Not yet implemented** |
+| DR-013 | Trust model C: read-only canonical launch plus a disposable shared sandbox (Phase 2B D1) | Accepted | Stage 1 part applied to live and verified there (EVAL-065, EVAL-066). Stage 2 database part (M-4 to M-6) in the repository and verified locally (EVAL-071 to EVAL-078), not applied to live; Stage 2 UI not built |
+| DR-014 | Reset applies only to the sandbox, with a 5-minute cooldown (D2) | Accepted | Stage 1 part applied to live and verified there (EVAL-065, EVAL-066). `sandbox_reset()` in the repository and verified locally (EVAL-071, EVAL-073; reset-vs-write race and isolation fixed in EVAL-075 to EVAL-078), not applied to live; A7 not built |
+| DR-015 | All five evidence types in the sandbox, always marked as visitor evidence (D3) | Accepted | Database part (`origin`, `sandbox_add_evidence`) in the repository and verified locally (EVAL-071, EVAL-077, EVAL-078), not applied to live; A5 not built |
+| DR-016 | The database sets visitor identity and evidence dates (D4) | Accepted | In the repository and verified locally (EVAL-071, EVAL-078), not applied to live |
 | DR-017 | Evidence URLs are https only; visitor URLs are never clickable (D5) | Accepted | Database rule applied to live and verified there (EVAL-065, EVAL-066); rendering rule is Stage 2 |
-| DR-018 | Sandbox limits: 10 visitor evidence and 20 visitor decisions per gate, 5-minute cooldown (D6) | Accepted | **Not yet implemented** (Stage 2); Stage 1's zero public-write bound is applied to live and verified there (EVAL-066) |
+| DR-018 | Sandbox limits: 10 visitor evidence and 20 visitor decisions per gate, 5-minute cooldown (D6) | Accepted | Caps and cooldown in the repository and verified locally, including two-session races and the READ COMMITTED requirement (EVAL-071, EVAL-073, EVAL-076 to EVAL-078); not applied to live. Stage 1's zero public-write bound is applied to live (EVAL-066) |
 | DR-019 | One authoritative migration deployment path (D7) | Accepted | Implemented by DR-024: the Supabase connector is the single path, and release gate R-9 is met. Stage 1 is the first migration applied under it (`20261002160901`, EVAL-065) |
 | DR-020 | No Supabase Auth at this stage; `authenticated` stays aligned with `anon` | Accepted (its R-8 consequence replaced by DR-022) | In force (nothing to build) |
 | DR-021 | Stage 1 security hardening: one migration, a read-only catalog test, a local behavior test | Accepted | **Applied to live** as `20261002160901` at 16:09 (EVAL-065) and verified there: catalog 17 of 17, fingerprint equal to EVAL-045, no 0028 or 0029 lints (EVAL-066), C-11 parity PASS (EVAL-068). File renamed to that version under DR-009 (EVAL-067); the closeout commit carries the rename |
 | DR-022 | Retire release gate R-8 (the Auth settings check); no Auth is an explicit tradeoff | Accepted | In force: documentation only; enforced by catalog checks 13 and 15 |
-| DR-023 | SEC-007 at the Stage 1 release: no default-privilege change; every new function is revoked explicitly | Accepted | Stage 1 part verified locally (no function exposed through the default); the Stage 2 obligation is recorded |
+| DR-023 | SEC-007 at the Stage 1 release: no default-privilege change; every new function is revoked explicitly | Accepted | Stage 1 part verified locally (no function exposed through the default). Stage 2 part met in the repository and verified locally (EVAL-071, EVAL-078), not applied to live |
 | DR-024 | The Supabase connector is the single authoritative production migration path | Accepted; amended by A1 (14:55) | In force. Stage 1 applied under it at 16:09 (EVAL-065), after the first attempt timed out without effect (EVAL-062). A1's temporary setting was used and its connector removed (EVAL-067). Step 7 parity passed (EVAL-068); R-3 met. R-2 is satisfied by the repository rename being committed; the closeout commit carries it |
+| DR-025 | Stage 2 specification: sandbox copy, visitor write UI, reset UX, canonical fingerprint, read-only production verification | Accepted | Database part implemented and verified locally (EVAL-069 to EVAL-078); not applied to live. UI not built |
 
 ---
 
@@ -162,6 +163,29 @@ and this log disagree, this log is authoritative.
 - **Evidence:**
   - EVAL-018: the Lovable workspace has 0 projects.
   - Every code commit is in this repository.
+- **Amendment A2 (2026-10-02, about 17:00): Lovable as a UI workspace.** Added before Stage 2; the decision above is unchanged. This repository stays the single source of truth, and Lovable gets no database role.
+  - **Why the original concern still holds, and how this amendment respects it:** DR-004 rejected building through Lovable because its GitHub sync creates its own repository and it applies database changes itself, so two systems would edit one database. This amendment allows Lovable only as a presentation-layer workspace, with no database connection at all.
+  - **Scope:** Lovable may be used to design and build presentation code: pages, components, styling, interaction states and copy, for the Stage 2 UI and later UI work.
+  - **Authority:**
+    - `git-d3po/ai-launch-readiness-console` is the only authoritative repository. A repository that Lovable's GitHub sync creates is a non-authoritative workspace.
+    - Code moves one way, from Lovable into this repository, as reviewed commits.
+    - Imported changes stay within presentation-layer files explicitly approved during the import review.
+  - **Repository-owned, outside Lovable's authority** unless a future decision changes this boundary:
+    - `supabase/**`: migrations and database tests
+    - `src/lib/**`, including the generated `src/lib/database.types.ts` and the data access that calls the sandbox functions
+    - `src/domain/**`
+    - environment files (`.env*`)
+    - any backend or server code
+    - the documentation
+  - **Dependencies:** any change to `package.json` or the lockfile needs explicit review.
+  - **Database:**
+    - Lovable is never given a Supabase integration, a Lovable Cloud database, migration authority or SQL access.
+    - Lovable-generated code reads and writes only through the repository's data layer. It never writes tables directly and never calls `reset_demo_data`, `set_gate_status` or any function outside the sandbox allowlist.
+  - **Preview data:** repository-owned mock fixtures are the default preview mechanism. The production URL and publishable key aren't entered into Lovable. A real-data preview would need its own future decision.
+  - **Credentials and backend:** no service-role key, no secret in a `VITE_` variable (DR-011), no Edge Function, no alternate backend (DR-001, DR-018).
+  - **Publishing:** Lovable's publish and deploy aren't used for this project. Hosting is a separate decision, subject to R-12 and R-13.
+  - **Review gate for each import:** the diff stays within the approved presentation files; no `dangerouslySetInnerHTML` (I16); no third-party scripts or remote fonts (R-12's CSP); Vitest, typecheck and build pass.
+  - **Order:** the database changes and the repository's data layer come first, then Lovable UI, then review and import, then tests. Lovable designs against an existing contract, never ahead of it.
 
 ## DR-005: Supabase project configuration
 
@@ -376,6 +400,7 @@ restores the whole seed. **The project owner approved D1 to D7 on 2026-10-02** (
 - **Implementation status:**
   - **Stage 1** (migration M-1) makes the canonical launch read-only to the public. It's in the repository and verified locally on Postgres 17 (DR-021), but **not applied to live**.
   - **Stage 2** (M-4 to M-6, A3 to A9) adds the sandbox. Not built.
+  - **Update (2026-10-02, after the Stage 2 review):** Stage 1 was applied to live at 16:09 and verified there (EVAL-065, EVAL-066, EVAL-068). The Stage 2 database part (M-4 to M-6) is in the repository and verified locally (EVAL-069 to EVAL-078); it isn't applied to live. The Stage 2 UI (A3 to A9) isn't built.
 - **Context:**
   - Any anonymous caller can make the canonical launch read Ready and plant impersonated approvers (SEC-001).
   - The public write paths exist because the brief asked for public editing, but **no shipped UI uses them**. The client makes no write calls, and Reset is disabled.
@@ -416,6 +441,7 @@ restores the whole seed. **The project owner approved D1 to D7 on 2026-10-02** (
 - **Implementation status:**
   - **Stage 1** (M-1) revokes `anon` and `authenticated` EXECUTE on `reset_demo_data()`. It's in the repository and verified locally (DR-021), but **not applied to live**.
   - **Stage 2** (M-4 to M-6, A7) adds `sandbox_reset()`. Not built.
+  - **Update (2026-10-02, after the Stage 2 review):** Stage 1 was applied to live at 16:09 and verified there (EVAL-065, EVAL-066). `sandbox_reset()` is in the repository and verified locally, including the reset-vs-write races and its READ COMMITTED requirement (EVAL-071, EVAL-073, EVAL-075 to EVAL-078); it isn't applied to live. A7 isn't built.
 - **Context:** `reset_demo_data()` truncates all six tables and re-seeds them, and any anonymous caller can run it (SEC-002).
 - **Options considered:**
   - **Remove it from the public API:** chosen for the canonical reseed.
@@ -442,6 +468,7 @@ restores the whole seed. **The project owner approved D1 to D7 on 2026-10-02** (
 - **Date:** specified at 10:58; approved on 2026-10-02.
 - **Status:** Accepted
 - **Implementation status:** **Not yet implemented** (Stage 2: M-4 adds `origin`; M-6 adds `sandbox_add_evidence`; A5 adds the label).
+  - **Update (2026-10-02, after the Stage 2 review):** the database part (`origin` in M-4, `sandbox_add_evidence` in M-6) is in the repository and verified locally (EVAL-071, EVAL-077, EVAL-078); it isn't applied to live. A5 isn't built.
 - **Context:** a visitor could label fabricated evidence "Sign-off" or "Evaluation result".
 - **Options considered:**
   - all five types, labeled
@@ -465,6 +492,7 @@ restores the whole seed. **The project owner approved D1 to D7 on 2026-10-02** (
 - **Date:** specified at 10:58; approved on 2026-10-02.
 - **Status:** Accepted
 - **Implementation status:** **Not yet implemented** (Stage 2: M-6).
+  - **Update (2026-10-02, after the Stage 2 review):** implemented in M-6: the sandbox functions set `decided_by = 'Sandbox visitor'`, `origin = 'visitor'` and `recorded_on = current_date`, and take none of them as arguments. In the repository and verified locally (EVAL-071, EVAL-078); not applied to live.
 - **Context:**
   - `decided_by` is free text supplied by the caller, so visitors can impersonate any role.
   - `recorded_on` accepted 9999-12-31.
@@ -492,6 +520,7 @@ restores the whole seed. **The project owner approved D1 to D7 on 2026-10-02** (
 - **Implementation status:**
   - **Stage 1:** M-2 adds the CHECK constraint. It's in the repository and verified locally (DR-021), but **not applied to live**. The implemented pattern refines the Phase 2B text so that it doesn't depend on the collation provider (DR-021).
   - **Stage 2:** A6 sets the rendering rule. Not built. No UI renders `source` today.
+  - **Update (2026-10-02, after the Stage 2 review):** the Stage 1 constraint was applied to live at 16:09 and verified there (EVAL-065, EVAL-066). A6 isn't built.
 - **Context:** `evidence.source` accepts `javascript:` and other schemes. Nothing renders it today, but the gate sheet will (SEC-005).
 - **Options considered:**
   - a UI-only check
@@ -515,6 +544,7 @@ restores the whole seed. **The project owner approved D1 to D7 on 2026-10-02** (
 - **Date:** specified at 10:58; approved on 2026-10-02.
 - **Status:** Accepted
 - **Implementation status:** **Not yet implemented** (Stage 2: M-6). Stage 1 sets the public write bound to zero; that part is in the repository and verified locally (DR-021), but not applied to live.
+  - **Update (2026-10-02, after the Stage 2 review):** Stage 1's zero public-write bound was applied to live at 16:09 and verified there (EVAL-066). The caps and the cooldown are in M-6, in the repository and verified locally, including two-session races (EVAL-071, EVAL-073, EVAL-076 to EVAL-078); not applied to live. The gate's row lock makes the caps race-free at READ COMMITTED, and each sandbox function refuses higher isolation levels, where it wouldn't (reconciliation record §19).
 - **Context:** public writes are unbounded today. The free plan turns read-only above 500 MB of database size (SEC-003).
 - **Options considered:**
   - **Per-gate caps inside the sandbox functions:** chosen.
@@ -724,6 +754,7 @@ restores the whole seed. **The project owner approved D1 to D7 on 2026-10-02** (
 - **Implementation status:**
   - **Stage 1 part:** nothing to build. The audit below found no function exposed through the default.
   - **Stage 2 part:** an obligation on the sandbox migration, recorded here and in SEC-007. Not yet implemented.
+  - **Update (2026-10-02, after the Stage 2 review):** the Stage 2 part is met in the repository. M-5 revokes `set_gate_status`, `build_sandbox` and `reset_demo_data` from PUBLIC, `anon` and `authenticated`; M-6 revokes the three sandbox functions from PUBLIC, then grants them to `anon` and `authenticated` only. Catalog check 9 verifies the result locally (EVAL-071, EVAL-078). Not applied to live.
 - **Context:**
   - **SEC-007:** in Postgres, a new function grants EXECUTE to PUBLIC unless that is revoked.
     - Live's per-schema default for functions in `public` (`{postgres=X/postgres}`) is added to that built-in default; it doesn't replace it.
@@ -863,3 +894,25 @@ restores the whole seed. **The project owner approved D1 to D7 on 2026-10-02** (
     - The directory connector's URL couldn't be edited, so the owner set the option on a separate connector, "Supabase Deployment". It's the same Supabase MCP server and `apply_migration` operation, and it was used only for this window. The session could never read the option's value; it rests on the owner's configuration.
     - With the owner's authorization, one `apply_migration` call through that connector succeeded at 16:09, with no confirmation hold and no retry (EVAL-065). The original connector stayed enabled, but wasn't called.
     - The owner then removed the Deployment connector, and its tools left the session (EVAL-067). That completes the removal rule above.
+
+## DR-025: Stage 2 specification: sandbox copy, visitor write UI, reset UX, canonical fingerprint, read-only production verification
+
+- **Date:** 2026-10-02. Readiness audit and decision package about 16:40 to 16:55; approved with corrections by the project owner at about 17:00.
+- **Status:** Accepted. Completes the Stage 2 specification of DR-013 to DR-018 and the reconciliation record (§9 M-4 to M-6, §10 B-4 and C-14). Contract details are in the reconciliation record, §19.
+- **Implementation status:** specified; being implemented and verified locally. Nothing is applied to live.
+  - **Update (17:11):** M-4 to M-6 and the tests are in the repository and pass locally (EVAL-069 to EVAL-074). Not applied to live; the UI isn't built.
+  - **Update (2026-10-02, after EVAL-074):** a pre-commit review found that `sandbox_reset()` could leave behind a visitor write that was uncommitted when the reset started, and that item 7's reason overstated P0001. The reset now locks every sandbox gate before deleting and refuses to run outside READ COMMITTED; item 7's reason is corrected (reconciliation record §19). Verified locally (EVAL-075, EVAL-076). Still not applied to live.
+  - **Update (2026-10-02, after EVAL-076):** the same isolation dependency applies to the visitor functions. Above READ COMMITTED, `sandbox_add_evidence` could exceed the evidence cap and `sandbox_set_gate_status` could pass a gate whose evidence a concurrent reset had deleted. Both now refuse REPEATABLE READ and SERIALIZABLE as the reset does (reconciliation record §19). Verified locally (EVAL-077, EVAL-078). Still not applied to live.
+- **Context:** the Stage 2 readiness audit found the sketches consistent but underspecified in seven places: the sandbox copy's scope, the visitor write UI, how the reset cooldown is shown, the fingerprint's meaning once a sandbox exists, production verification under I19, a conflict between R-6 and C-13, and Stage 1 tests that look gates up by title.
+- **Decision:**
+  1. **Sandbox copy (M-5).** One owner-only routine copies every canonical launch into exactly one sandbox launch: all of its gates, evidence, risks, decisions and rollout stages, with every gate reference remapped. The M-5 migration builds the sandbox from the existing canonical rows without reseeding them. `reset_demo_data()` reseeds the canonical launch and rebuilds the sandbox **in one transaction**: either both complete or the whole operation rolls back, so a partially built sandbox can't survive. The mechanism is an implementation choice.
+  2. **Visitor write UI.** The gate sheet's forms appear only on sandbox gates and call only `sandbox_add_evidence` and `sandbox_set_gate_status` through the repository's data layer. `origin`, `recorded_on` and `decided_by` are set by the database and are never form fields. Field rules are in §19.
+  3. **Reset cooldown.** The cooldown stays readable only through the reset itself: `sandbox_reset()` raises a P0001 message that states the remaining time. No read function or grant is added for `sandbox_state`.
+  4. **Canonical fingerprint.** `fingerprint.sql` replaces the `seed_data` part with `canonical_data`: the same row expression, restricted to canonical launches and their rows. Sandbox writes, status changes, decisions, evidence and resets must never change it. The 11 schema parts keep their definitions; their expected values change with the Stage 2 schema and are recorded as a new baseline. Because M-5 leaves canonical rows untouched, the first Stage 2 `canonical_data` equals the Stage 1 `seed_data` value (EVAL-045). That equality is a continuity observation for this migration, not a permanent requirement: a later, deliberate change to the canonical seed would change it.
+  5. **Production verification stays read-only (I19 unchanged).** After each Stage 2 migration: C-11, the catalog test, the fingerprint, C-14 and the advisors. No sandbox function is called on production as a test. A connector call runs as `postgres` and can't prove the `anon` path, which the catalog test proves read-only; the function bodies are proven locally on byte-identical SQL (C-11). The hosted UI is the first anon-path exercise.
+  6. **R-6 and C-13** are reworded so that the advisor may list exactly the I4 allowlist and nothing else (reconciliation record §10 and §11).
+  7. **Application item A1** (show P0001 messages, others generically) becomes a Stage 2 prerequisite, because every rule the sandbox functions check themselves is a P0001 message meant for the visitor. A value that breaks a table constraint (I14, https, length, NOT NULL) keeps its own SQLSTATE, such as 23514 or 23502, and is shown generically with its code.
+- **Rationale:** each choice keeps the public surface at the three allowlisted functions, keeps canonical data provably unchanged, and keeps production verification read-only.
+- **Assumptions:** the data stays synthetic; one shared sandbox is acceptable (DR-013).
+- **Consequences:** the Stage 1 tests that look gates up by title, or count all rows, are scoped to canonical rows with their expected values unchanged. Catalog check 9's allowlist and check 15's expected hashes change with the Stage 2 schema.
+- **Evidence:** the readiness audit and decision package (session record, about 16:40 to 16:55); local implementation evidence follows in the evaluation log.

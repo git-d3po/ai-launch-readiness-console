@@ -12,6 +12,7 @@
   - **Update, Stage 1 release checkpoint (about 13:10):** Stage 1 is pushed to `origin/claude/phase1-schema` and still **not applied to live**. The single deploy path couldn't be established with the available tools: decision-tree Case C (§16). Release gate R-8 is retired (DR-022), and SEC-007 has a recorded disposition (DR-023).
   - **Update, deployment-path decision (14:15 to 14:25):** DR-024 designates the Supabase connector as the single production migration path, so release gate R-9 is met (§11, §17). The earlier reading that GitHub had been linked to the project was wrong; it's corrected in §16 and §17. §8 gains an "Update" note on how I20 applies. Stage 1 is still **not applied to live**.
   - **Update, Stage 1 deployment (16:08 to 16:29):** Stage 1 is **applied to live** as `20261002160901` and verified there read-only: catalog 17 of 17, fingerprint equal to EVAL-045, no 0028 or 0029 lints, and C-11 migration parity PASS. R-3 and R-6 are met. R-2's application is met, and R-2 is satisfied by the DR-009 rename to that version being committed; the closeout commit carries it (§11, §18).
+  - **Update, Stage 2 specification (about 17:00):** DR-025 and DR-004 amendment A2 complete the Stage 2 specification; §19 holds the contracts. C-13 and R-6 are reworded for Stage 2, and A1 becomes a Stage 2 prerequisite.
 - **Related:**
   - [`findings.md`](findings.md): one record per finding
   - [`../evaluation/EVALUATION_LOG.md`](../evaluation/EVALUATION_LOG.md): the evidence, cited as EVAL-NNN
@@ -299,7 +300,7 @@ I20 is checked after the rename: the repository and production must then agree o
 | S4 | Migration M-3: default privileges | None | I9 | **Applied to live** (EVAL-065); catalog check 14 passes there (EVAL-066) |
 | S5 | **Verify on production:**<br>• the catalog test passes<br>• the advisor shows no 0028 or 0029 lints<br>• migration hashes match<br>• the fingerprints match<br>• the integrity suite passes 6 of 6 **locally** | S1 to S4 | All Stage 1 invariants | **Done:** catalog 17 of 17, no 0028 or 0029 lints, fingerprint equal to EVAL-045 (EVAL-066); migration hashes match, C-11 PASS (EVAL-068). The integrity suite passed locally (EVAL-056, EVAL-061, EVAL-062) |
 | S6 | The owner checks the Auth dashboard settings and records them | None | Closes M1 | **Retired** with R-8 (DR-022), not passed: the settings stay unread |
-| Stage 2 | **At the start of the gate-sheet phase:**<br>• M-4: provenance, sandbox columns, composite keys, text checks<br>• M-5: `set_gate_status` gains an origin; the seed builds the sandbox<br>• M-6: the three sandbox functions<br>• application items A3 to A9 | D1 to D6 | I11 to I16 | Not started |
+| Stage 2 | **At the start of the gate-sheet phase:**<br>• M-4: provenance, sandbox columns, composite keys, text checks<br>• M-5: `set_gate_status` gains an origin; the seed builds the sandbox<br>• M-6: the three sandbox functions<br>• application items A3 to A9 | D1 to D6 | I11 to I16 | **M-4 to M-6 in the repository and verified locally** (EVAL-071 to EVAL-078); not applied to live. A1 and A3 to A9 not started |
 
 Stage 1 (S1 to S6) is the next implementation phase.
 
@@ -386,6 +387,7 @@ alter default privileges for role postgres in schema public revoke all on tables
 
 **M-6 `sandbox_rpcs` (Stage 2)**
 - Each function is SECURITY DEFINER with `search_path = ''` and no dynamic SQL.
+- Each runs only at READ COMMITTED and refuses higher isolation levels, where its locks wouldn't guarantee its invariant (§19).
 - **`sandbox_add_evidence(gate_id, type, title, summary, source default null)`:**
   - locks the gate and rejects a non-sandbox gate
   - rejects the 11th visitor item
@@ -396,6 +398,7 @@ alter default privileges for role postgres in schema public revoke all on tables
   - delegates to `set_gate_status(..., 'Sandbox visitor', ..., 'visitor')`
 - **`sandbox_reset()`:**
   - locks `sandbox_state` and rejects a call within 5 minutes of the last reset
+  - locks every sandbox gate in id order, so a visitor write in flight ends before the deletes
   - deletes visitor rows on sandbox launches
   - restores sandbox gate `status` and `waiver_rationale` from the source gates
   - uses no TRUNCATE
@@ -406,7 +409,7 @@ alter default privileges for role postgres in schema public revoke all on tables
 
 | ID | Stage | Item |
 |---|---|---|
-| A1 | Low priority | Show the error message only for SQLSTATE `P0001`; otherwise show "Could not load data (code XXXXX)" |
+| A1 | Low priority; **Stage 2 prerequisite** (DR-025) | Show the error message only for SQLSTATE `P0001`; otherwise show "Could not load data (code XXXXX)" |
 | A2 | Low priority | Route ids match `/^\d{1,15}$/`; anything longer goes to Not found (N5) |
 | A3 | Stage 2 | Sandbox banner, a "Sandbox" badge in the list; the title chip counts canonical launches only |
 | A4 | Stage 2 | Canonical pages show no write controls and link to "Try this in the sandbox" |
@@ -435,6 +438,7 @@ query.
 - **C-11:** migration parity (EVAL-022's query).
 - **C-12:** fingerprint parity against an ephemeral database built from the repository.
 - **C-13:** the advisor shows zero 0028 and 0029 lints in Stage 1, and exactly the three documented functions in Stage 2.
+  - **Update (DR-025):** reworded: the advisor's 0028 and 0029 findings name exactly the I4 allowlist and nothing else: none in Stage 1; in Stage 2, the three sandbox functions under each lint. Catalog check 9 enforces the same allowlist from the catalog, in both directions.
 - **C-14 (Stage 2):** no visitor rows on a canonical launch; no sandbox gate over its caps.
 
 **Behavior tests.** Local or ephemeral databases only. Each runs as `anon` **and** as `authenticated`,
@@ -498,11 +502,11 @@ inside a rolled-back transaction.
 | R-3 | C-1 to C-13 pass against production | **Passed** (16:29). On live after the migration: C-1 to C-10 pass as catalog checks 1 to 17, 17 of 17; C-12 holds, all 12 fingerprint parts equal EVAL-045; C-13 holds, no 0028 or 0029 lints (EVAL-066); C-11 passes, each stored statement's md5 equals its file, `20261002160901` `f66a638dfb93554ad4f1a2bac0826304` (EVAL-068). Before the migration the catalog test failed 4 of 17 (EVAL-048, EVAL-051, EVAL-059, EVAL-062) |
 | R-4 | B-1 to B-3 pass on an ephemeral database built from the repository, and C-12 parity holds | **Met locally:** 24 of 24 (EVAL-043), and again with 41 reject cases (EVAL-056); pre-Stage-1 parity with live holds (EVAL-039, EVAL-051) |
 | R-5 | The integrity suite passes 6 of 6 locally; Vitest, typecheck and build are green | **Met** (EVAL-044, EVAL-047; again in EVAL-056 and EVAL-058) |
-| R-6 | The security advisor shows no `anon` or `authenticated` SECURITY DEFINER lints | **Met** (16:11, EVAL-066): the security advisor returns no lints. Before the migration 0028 and 0029 listed the two functions (EVAL-049, EVAL-051, EVAL-059, EVAL-062) |
+| R-6 | The security advisor shows no `anon` or `authenticated` SECURITY DEFINER lints | **Met** (16:11, EVAL-066): the security advisor returns no lints. Before the migration 0028 and 0029 listed the two functions (EVAL-049, EVAL-051, EVAL-059, EVAL-062)<br>**Update (DR-025), wording for Stage 2:** the advisor lists `anon` or `authenticated` SECURITY DEFINER findings (0028, 0029) only for the functions on I4's allowlist, each a documented public endpoint. Stage 1: none. Stage 2: exactly `sandbox_add_evidence`, `sandbox_set_gate_status` and `sandbox_reset` under each lint, and no other function; any other function listed fails the gate |
 | R-7 | The history and bundle secret scans are clean | **Met with detect-secrets:** no real secrets in the full history (EVAL-057) or the production bundle (EVAL-058). gitleaks couldn't be installed (network policy), and GitHub secret scanning isn't available on this repository |
 | R-8 | The Auth dashboard settings are checked and recorded; signups disabled or confirmed harmless | **Retired, not passed** (DR-022). Auth is intentionally not used; the release instead requires catalog checks 13 and 15 on every deployment (`anon` and `authenticated` hold identical privileges and policies). The settings stay unread: a documented tradeoff, not a security advantage |
 | R-9 | The GitHub integration deploy settings are confirmed before anything merges to `main` | **Met** by the deployment-path decision (DR-024, 14:15). The Supabase connector is the designated single path and has applied every production migration (EVAL-022, EVAL-059). No GitHub integration has ever been connected (owner-verified at 13:54, EVAL-060), and no CI workflow exists, so nothing deploys from `main`. The earlier "Open, blocking" status (EVAL-052, EVAL-053) rested on a misreading, corrected in DR-019 and EVAL-052 |
-| R-10 | The gate-sheet phase begins with M-4 to M-6 and B-4, before any write UI exists | Not started |
+| R-10 | The gate-sheet phase begins with M-4 to M-6 and B-4, before any write UI exists | **Met in the repository, locally** (EVAL-071 to EVAL-074): M-4 to M-6 and B-4 exist and pass, and no write UI exists. **Not applied to live**; production deployment follows DR-024 |
 
 **Before public deployment:**
 
@@ -803,3 +807,87 @@ If any check fails, stop and reconcile. Don't retry blindly, repair the history,
 
 - **The app in a browser against live**, from §16's verification table. It's not run.
 - **Advisor INFO findings 0001 and 0005:** performance only, unrelated to Stage 1, reported as they are (EVAL-066).
+
+## 19. Stage 2 specification (DR-025, 2026-10-02)
+
+The §9 sketches of M-4 to M-6 stay as written. This section is the implementation contract that refines them. Where they differ, this section governs.
+
+### M-4 `sandbox_provenance`
+
+- **Provenance:** enum `record_origin` (`seed`, `visitor`); `origin ... not null default 'seed'` on `evidence` and `decisions`.
+- **Sandbox links:**
+  - `launches.source_launch_id`: null for a canonical launch; for a sandbox launch, its canonical launch. Unique, so at most one sandbox per canonical launch.
+  - `gates.source_gate_id`: null for a canonical gate; for a sandbox gate, its canonical gate. Unique.
+- **Same-launch integrity:** `unique (id, launch_id)` on `gates`; composite foreign keys `decisions (gate_id, launch_id)` and `risks (gate_id, launch_id)` to `gates (id, launch_id)`.
+- **Text rules (I14),** as table constraints, so they bind the seed as well as visitors:
+  - single-line, rejecting U+0001 to U+001F, U+007F to U+009F, U+202A to U+202E and U+2066 to U+2069: `evidence.title`, `decisions.decision`;
+  - multi-line, which also allow tab, LF and CR: `evidence.summary`, `decisions.rationale`, `decisions.waiver_rationale`, `gates.waiver_rationale`.
+- **Cooldown state:** `public.sandbox_state`, a single row holding `last_reset_at`, with RLS enabled and no grants to any API role. It starts in the past, so the first reset is allowed. The advisor may report it as INFO lint 0008 (RLS enabled, no policy); that's intended.
+
+### M-5 `sandbox_seed`
+
+- **`set_gate_status`** gains a trailing `origin public.record_origin default 'seed'`, written to the decision. The old 5-argument signature is dropped. The new one is explicitly revoked from PUBLIC, `anon` and `authenticated` (DR-023) and stays owner-only.
+- **Sandbox copy,** by one owner-only routine (no grant to any API role):
+  - one sandbox launch per canonical launch, named `<name> (sandbox)`, every other column copied;
+  - all of that launch's gates, every column copied (status and waiver text included), with `source_gate_id` set;
+  - all evidence, risks, decisions and rollout stages, with `launch_id` set to the sandbox launch and every `gate_id` remapped through `source_gate_id`; copied evidence and decisions get `origin = 'seed'`;
+  - a decision that refers to a risk is rejected by the routine (the seed has none), rather than copied with a wrong reference;
+  - rows are copied in canonical id order, so the result depends only on canonical content;
+  - only canonical launches are sources; a sandbox is never copied.
+- **The M-5 migration** builds the sandbox from the existing canonical rows. It doesn't truncate or reseed, so canonical rows keep their ids and contents.
+- **`reset_demo_data()`** stays owner-only. It reseeds the canonical launch exactly as before, then rebuilds the sandbox, **atomically**: one transaction, so a failure rolls back the reseed too. It doesn't touch `sandbox_state`.
+
+### M-6 `sandbox_rpcs`
+
+All three are SECURITY DEFINER, owned by `postgres`, with `search_path = ''`, no dynamic SQL, fully qualified relations, `revoke all ... from public`, then `grant execute ... to anon, authenticated`.
+
+- **Error codes:** every rule a function checks itself (a non-sandbox or missing gate, a cap, the cooldown, an isolation level above READ COMMITTED, and the I8 rules in `set_gate_status`) is a `RAISE EXCEPTION` with the default SQLSTATE P0001 and a message fit to show a visitor. A value that breaks a table constraint fails with that constraint's own SQLSTATE: 23514 for a CHECK (the I14 text rules, the https rule, a length limit) and 23502 for NOT NULL. An argument its type rejects, such as an unknown evidence type, fails with 22P02. The functions don't translate these into P0001; the UI handles them under A1.
+- **Isolation:** all three functions run only at READ COMMITTED and refuse REPEATABLE READ and SERIALIZABLE with P0001 before taking any lock. Each guarantee below rests on reading committed state after the function holds its locks. At READ COMMITTED every statement takes a fresh snapshot; at the higher levels the snapshot predates the lock wait, and a row that another session only locked, without updating it, raises no serialization error. An API caller can't choose the level; the server's configuration sets it (Postgres defaults to READ COMMITTED). The refusal keeps the guarantees from depending on that configuration. Measured without the refusal:
+  - `sandbox_add_evidence` added an 11th visitor item (I12), at both higher levels (EVAL-077);
+  - `sandbox_set_gate_status`, racing a reset that had deleted the gate's only evidence, passed the gate with no evidence (I8), at both higher levels (EVAL-077);
+  - `sandbox_reset` left a visitor row that was uncommitted when it started (I13), at REPEATABLE READ (EVAL-075; SERIALIZABLE wasn't measured).
+  The visitor decision cap alone doesn't need the refusal: every accepted status change updates the gate, so a stale caller gets 40001.
+
+- **`sandbox_add_evidence(gate_id, type, title, summary, source default null)`:** refuses to run outside READ COMMITTED (P0001); locks the gate; rejects a gate that isn't on a sandbox launch; rejects the 11th visitor item on the gate; inserts with `origin = 'visitor'`, `recorded_on = current_date`, and `btrim`'d title, summary and source. A blank source must be sent as null; `''` is rejected by M-2.
+- **`sandbox_set_gate_status(gate_id, new_status, rationale, waiver_rationale default null)`:** refuses to run outside READ COMMITTED (P0001); locks the gate; rejects a non-sandbox gate; rejects the 21st visitor decision on the gate; then calls `set_gate_status(..., 'Sandbox visitor', ..., 'visitor')`, which keeps every I8 rule.
+- **`sandbox_reset()`:** refuses to run outside READ COMMITTED (P0001); locks `sandbox_state`; within 5 minutes of the last reset, raises P0001 with the remaining time; otherwise locks every sandbox gate `FOR UPDATE` in id order, then deletes visitor evidence and decisions on sandbox launches, restores each sandbox gate's `status` and `waiver_rationale` from its source gate, and records the reset time. No TRUNCATE.
+  - **Why the gate locks (I13):** every visitor write holds its gate's row lock until it commits. Once the reset holds all of them, each earlier visitor write has ended and each later one waits for the reset. Under READ COMMITTED each later statement in the reset takes a fresh snapshot, so the deletes see every committed visitor row. Without the gate locks, a visitor write still uncommitted when the deletes ran survived the reset (EVAL-075).
+  - **Why READ COMMITTED only:** see **Isolation** above. A visitor that only added evidence locked its gate without updating it, so at a higher level no serialization error fired and its row survived the reset (EVAL-075).
+  - **Lock order:** `sandbox_state`, then sandbox gates in id order. The visitor functions lock one gate and never `sandbox_state`, so no function takes them in the reverse order. Only gate rows are locked, not launches, because a visitor's decision insert takes a key-share lock on its launch.
+
+### Visitor write UI (A4, A5, A6 and the gate sheet)
+
+- **Visibility:** the forms render only for gates on a sandbox launch. Canonical gate sheets are read-only and link to the sandbox.
+- **Add evidence:** type (one of the five, required); title (required, at most 200, single line); summary (required, at most 2000, multi-line); source (optional; blank sent as null; at most 500; https rule). Date and "Visitor" are shown, never entered. At 10 visitor items, the form is replaced by "This gate has reached its 10 visitor evidence items. Reset the sandbox to start again."
+- **Change status:** any status except the current one. Rationale is required (at most 2000, multi-line). Passed needs at least one evidence item of either origin; the option is disabled with "Add evidence first" when there's none. Waived needs waiver text (at most 2000). Changes can repeat until 20 visitor decisions exist on the gate, then a cap message replaces the form.
+- **Success:** the gate, its evidence, its decisions and readiness are refetched (I17).
+- **Errors:** P0001 messages are shown verbatim (A1); anything else shows "Could not save (code XXXXX)".
+- **The client never writes a table** and calls no function except the three sandbox functions.
+
+### Reset UX (A7)
+
+- "Reset sandbox" in the header, behind a confirmation: "Reset the sandbox? This removes all visitor evidence and decisions on the sandbox launch and restores its gates. It affects everyone using the sandbox. The canonical launch is never changed."
+- **Success:** "Sandbox reset", then a refetch. The client may disable the button for 5 minutes as a convenience; the database is authoritative.
+- **Cooldown, or a concurrent reset that lost the race:** the P0001 message, verbatim.
+- **Any other error:** "Could not reset the sandbox (code XXXXX)", then a refetch.
+
+### Evaluation
+
+- **`fingerprint.sql`:** `canonical_data` replaces `seed_data` (DR-025). Expected after M-5 on a database at the seed: `dc85e31b82116a9fa79adaac8399aa90`, the EVAL-045 `seed_data` value.
+- **Stage 1 tests:** lookups by gate title, and the B-1 read counts, are scoped to canonical rows, with expected values unchanged.
+- **Catalog check 9:** the API roles can execute exactly the three sandbox functions. **Check 15:** new expected hashes, recorded with the Stage 2 baseline.
+- **B-4:** `supabase/tests/stage2_sandbox_behavior.sql`, local only, rolled back.
+- **C-14:** `supabase/tests/sandbox_invariants.sql`, read-only, safe on production.
+- **Concurrency:** `supabase/tests/stage2_concurrency.sh`, two sessions on a local database, because one transaction can't race itself. The order of events is enforced through `pg_stat_activity` and `pg_blocking_pids`, not timing. Four races: add vs add at the cap; reset vs reset at the cooldown; a visitor write uncommitted when a reset starts (the reset must wait, then remove it and restore the gate); and a reset holding the gate locks when a visitor writes (the write must land after it). Then the isolation checks: a reset at REPEATABLE READ and SERIALIZABLE is refused (check 5); each visitor function succeeds at READ COMMITTED and is refused at both higher levels with visitor data byte-identical (checks 6 and 7); and at each higher level, an add racing the 10th item and a change to Passed racing a reset are refused instead of breaking I12 or I8 (races 8 and 9). Race 1 also checks that both sides of the cap race ran at READ COMMITTED.
+- **Production verification:** read-only (DR-025 item 5). Because all three sandbox functions refuse to run above READ COMMITTED (**Isolation** above), Stage 2 verification on live also includes a **read-only isolation check** that API calls will run at READ COMMITTED: `show default_transaction_isolation`, and the `default_transaction_isolation` entries, if any, in `pg_db_role_setting` for the database and for `anon`, `authenticated` and `authenticator`. Any value other than `read committed` blocks the release, because every sandbox call would then be refused. The check writes nothing and calls no sandbox function. **Not yet run:** production isolation is unverified.
+
+### Status (17:11)
+
+- M-4 to M-6 are in the repository as `20261002170823_sandbox_provenance.sql`, `20261002170824_sandbox_seed.sql` and `20261002170825_sandbox_rpcs.sql`. These are authored versions; production assigns the real ones (DR-024).
+- Verified locally on fresh Postgres 17.10 (EVAL-069 to EVAL-074): catalog 17/17, C-14 7/7, Stage 1 behavior 24/24, B-4 29/29, integrity 6/6, concurrency 2/2, fingerprint baseline reproducible.
+- **Nothing is applied to live.** R-10 is met in the repository; A1 and A3 to A9 haven't started.
+- **Update (2026-10-02, after EVAL-074):** a pre-commit review found two blocking issues, now fixed locally (EVAL-075, EVAL-076):
+  - `sandbox_reset()` could leave a visitor row behind when a visitor write was uncommitted as the reset started. It now locks every sandbox gate before deleting, and refuses to run outside READ COMMITTED, where those locks wouldn't be enough. The concurrency script gained that race, its reverse and the isolation check, and fails against the earlier function.
+  - The M-6 header and this section said every rule violation raises P0001. Constraint violations keep their own SQLSTATE; both texts now say so.
+  - Re-verified on fresh builds: catalog 17/17 (check 15's `functions` value is now `04dd6a74f664cd7a92deb5d491a90e8f`), C-14 7/7, Stage 1 behavior 24/24, B-4 29/29, integrity 6/6, concurrency 4 races and check 5, `canonical_data` unchanged.
+- **Update (2026-10-02, after EVAL-077):** the same isolation dependency held for the visitor functions. Above READ COMMITTED, `sandbox_add_evidence` could add an 11th item and `sandbox_set_gate_status` could pass a gate whose evidence a concurrent reset had deleted. Both now refuse REPEATABLE READ and SERIALIZABLE, as `sandbox_reset` does (see **Isolation** above; EVAL-077). Re-verified on fresh builds (EVAL-078): catalog 17/17 (check 15's `functions` value is now `849220530a3d4b56a35f4e154a6d19e6`), C-14 7/7, Stage 1 behavior 24/24, B-4 29/29, integrity 6/6, concurrency 9/9, `canonical_data` unchanged.
