@@ -52,6 +52,7 @@ and this log disagree, this log is authoritative.
 | DR-024 | The Supabase connector is the single authoritative production migration path | Accepted; amended by A1 (14:55) | In force. Stage 1 applied under it at 16:09 (EVAL-065), after the first attempt timed out without effect (EVAL-062). A1's temporary setting was used and its connector removed (EVAL-067). Step 7 parity passed (EVAL-068); R-3 met. R-2 is satisfied by the repository rename being committed; the closeout commit carries it. Stage 2 window (2026-10-03): M-4 applied under A1 and recorded as `20261003183331`, then stopped at step 7 on a C-11 mismatch caused by the tool transport; A1's connector removed (EVAL-088). Second window: the corrective, M-5 and M-6 applied under A1, steps 5 to 8 passed (EVAL-091) |
 | DR-025 | Stage 2 specification: sandbox copy, visitor write UI, reset UX, canonical fingerprint, read-only production verification | Accepted | Database part implemented and verified locally (EVAL-069 to EVAL-078). On live: **applied and verified** (2026-10-03, EVAL-091), after the interrupted window (EVAL-088). UI (A1, A3 to A9) in the repository and verified locally (EVAL-079 to EVAL-086), not hosted; the app's database requirement is now met on live |
 | DR-026 | The M-4 transport incident: an exact deviation record, a transport-safe corrective migration, and a migration transport lint | Accepted (2026-10-03) | In the repository and verified locally (EVAL-089, EVAL-090). Applied to live: the corrective, M-5 and M-6 (EVAL-091); C-11 holds with the one M-4 exception |
+| DR-027 | Stage 4 hosting: a dependency-free Node server for `dist/` on Railway, with the R-12 headers and a report-only CSP | Accepted (2026-10-03) | In the repository and tested locally; deployment recorded in the evaluation log |
 
 ---
 
@@ -977,3 +978,30 @@ restores the whole seed. **The project owner approved D1 to D7 on 2026-10-02** (
   - A fresh replay of the repository and production converge on the same catalog. The fresh replay's C-11 differs only in M-4's stored md5, which is expected: C-11 describes production.
 - **Evidence:** EVAL-088 (the incident); the reconciliation and design session (2026-10-03, 18:40 to 18:46 UTC; recorded only); local validation follows in the evaluation log.
   - **Update (2026-10-03):** local validation is EVAL-089 (both paths, negative tests) and EVAL-090 (repository checks, and the tool path reproducing the selective decoding in a file write).
+
+## DR-027: Stage 4 hosting: a dependency-free Node server for `dist/` on Railway, with the R-12 headers and a report-only CSP
+
+- **Date:** 2026-10-03, under the owner's Stage 4 authorization (Railway, `main`, a generated `.up.railway.app` domain; §20 owner decisions 1, 2 and 5).
+- **Status:** Accepted.
+- **Context:**
+  - The app is a Vite single-page app using `BrowserRouter`. A deep link such as `/launches/2/gates/30` must load `index.html`; a missing asset must not.
+  - §20 stage 4 and release gates R-12 and R-13 require HTTPS with HSTS, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, and the CSP first sent as `Content-Security-Policy-Report-Only`, with `connect-src` naming the project's own Supabase origin, supplied at configuration time and not written into the repository.
+  - Until now the repository had no production server: `npm run preview` is Vite's preview server, not a production server, and nothing set headers.
+- **Options considered:**
+  - Railway's automatic static hosting for Vite builds: no reviewed control over the headers, and the CSP's `connect-src` would have to be written into a config file.
+  - A server framework (Express or similar): a new runtime dependency for a few dozen lines of behavior.
+  - **A small `node:http` server in the repository, with tests.**
+- **Decision:** `server/static-server.mjs`, started by `npm start`:
+  - serves `dist/`; files under `/assets/` (content-hashed) are cached for a year, everything else is revalidated;
+  - sends `index.html` for any GET or HEAD whose last path segment has no file extension, and a real 404 for a missing file with one;
+  - refuses dot segments (raw or percent-encoded), NUL bytes, and anything resolving outside `dist/`, and methods other than GET and HEAD;
+  - sends the R-12 set on every response, the CSP report-only (R-13), plus `X-Frame-Options: DENY` so framing is refused while the CSP's `frame-ancestors` only reports. HSTS is `max-age=31536000`, without `includeSubDomains` or `preload`, since the host is a shared platform domain;
+  - takes `connect-src` from the origin of `VITE_SUPABASE_URL` at start-up and refuses to start without an https URL there;
+  - listens on `0.0.0.0` and Railway's `PORT`.
+  - `railway.json` fixes the build (`npm run build`), the start (`npm start`), a healthcheck on `/` and an on-failure restart policy; `engines` pins Node 22.
+- **What the browser receives:** the build inlines `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`, set as Railway service variables. Both are browser-safe by design (DR-011, I1): the key is the project's publishable key (the `anon` role), and the database constrains that role (I3, I4). No service-role key, secret key, password or connection string is configured anywhere in the service.
+- **Rationale:** the smallest piece that meets the routing and header requirements, with no new dependency, and testable without a host.
+- **Consequences:**
+  - Enforcing the CSP after R-13's clean pass is a one-line change in `securityHeaders` (the header name), plus its test.
+  - The project URL appears in the deployed bundle and response headers, as it must for a browser client; it stays out of the repository.
+- **Evidence:** `server/static-server.test.mjs` (18 tests); the local and hosted checks in the evaluation log.

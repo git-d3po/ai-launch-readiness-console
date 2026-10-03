@@ -1179,6 +1179,7 @@ The seven security parts equal catalog check 15's embedded values. **Superseded:
 - Static hosting of `dist/` with every application route rewritten to `/index.html` (the app uses `BrowserRouter`; deep links such as `/launches/2/gates/30` must load).
 - HTTPS with HSTS, and the R-12 headers, with the CSP first sent as `Content-Security-Policy-Report-Only` (R-13). `connect-src` names the project's own `https://<project-ref>.supabase.co`, supplied at configuration time, not written into the repository. The current build needs nothing beyond R-12's policy: one same-origin script and stylesheet, no inline script or style, no websocket (checked in the release-readiness review).
 - The URL stays unshared until stage 6.
+- **Implementation (DR-027):** `npm start` runs `server/static-server.mjs`, a dependency-free Node server for `dist/` with the SPA fallback, real 404s for missing assets, the R-12 headers with the CSP report-only, and `connect-src` taken from `VITE_SUPABASE_URL` at start-up. `railway.json` sets the build, start command and a healthcheck on `/`.
 
 ### Production smoke test (stage 5, not yet run)
 

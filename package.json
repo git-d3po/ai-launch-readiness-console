@@ -2,12 +2,16 @@
   "name": "ai-launch-readiness-console",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "start": "node server/static-server.mjs"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",

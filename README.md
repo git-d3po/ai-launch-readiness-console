@@ -30,6 +30,7 @@ Other scripts (from `package.json`):
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run build` | Typecheck, then production build into `dist/` |
 | `npm run preview` | Serve the built `dist/` locally |
+| `npm start` | Production server for `dist/` (DR-027): SPA fallback, security headers; needs `VITE_SUPABASE_URL` and `PORT` |
 
 `node supabase/tests/migration_transport_lint.mjs` checks every migration file for characters and escape text a transport could change (DR-026); `npm test` runs its unit tests.
 
