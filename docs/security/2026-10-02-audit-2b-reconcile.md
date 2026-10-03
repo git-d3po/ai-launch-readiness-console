@@ -910,3 +910,4 @@ Recorded before the UI work starts. They settle what §10, the sections above, S
 - **Update (2026-10-02, after EVAL-079):** A8 and A9 are in the repository, not yet committed (EVAL-080). A8: the read path selects `source_launch_id` for launches and `origin` for the overview's decisions. A9: `src/lib/database.types.ts` is regenerated from a disposable local database built from the migrations. Both are validated locally, without production contact. A3 to A7 aren't built.
 - **Update (2026-10-02, after EVAL-080):** A8 and A9 are committed (`b423012`). The open A3 to A7 UI questions are settled in **UI contract resolutions** above; A3 to A7 aren't built.
 - **Update (2026-10-02, after EVAL-081):** A3 and the refresh infrastructure are in the repository, not yet committed (EVAL-081). A4 to A7 aren't built.
+- **Update (2026-10-02, after EVAL-081, commit):** A3 and the refresh infrastructure are committed (`053aaf8`), validated in EVAL-081. A4 to A7 aren't built.
