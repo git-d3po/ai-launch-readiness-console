@@ -19,25 +19,25 @@ describe('the repository migrations', () => {
     expect(files).toHaveLength(8);
   });
 
-  it('allowlist only the four recorded files, and nothing for the corrective, M-5 aside, or M-6', () => {
+  it('allowlist only the four recorded files, and nothing for the corrective or M-6', () => {
     expect(Object.keys(POLICY).sort()).toEqual([
       '20261002092043_phase1_schema.sql',
       '20261002160901_stage1_security_hardening.sql',
       '20261003183331_sandbox_provenance.sql',
-      '20261003190146_sandbox_seed.sql',
+      '20261003195043_sandbox_seed.sql',
     ]);
-    expect(POLICY['20261003190146_sandbox_seed.sql']).toEqual({ nonAscii: { 0x2192: 1 }, reason: expect.any(String) });
-    expect(POLICY['20261003190145_sandbox_text_rules_reencode.sql']).toBeUndefined();
-    expect(POLICY['20261003190147_sandbox_rpcs.sql']).toBeUndefined();
+    expect(POLICY['20261003195043_sandbox_seed.sql']).toEqual({ nonAscii: { 0x2192: 1 }, reason: expect.any(String) });
+    expect(POLICY['20261003194751_sandbox_text_rules_reencode.sql']).toBeUndefined();
+    expect(POLICY['20261003195305_sandbox_rpcs.sql']).toBeUndefined();
   });
 
   it('keep the order Stage 1, M-4, corrective, M-5, M-6', () => {
     expect(lintMigrations().files.slice(3)).toEqual([
       '20261002160901_stage1_security_hardening.sql',
       '20261003183331_sandbox_provenance.sql',
-      '20261003190145_sandbox_text_rules_reencode.sql',
-      '20261003190146_sandbox_seed.sql',
-      '20261003190147_sandbox_rpcs.sql',
+      '20261003194751_sandbox_text_rules_reencode.sql',
+      '20261003195043_sandbox_seed.sql',
+      '20261003195305_sandbox_rpcs.sql',
     ]);
   });
 
@@ -165,10 +165,9 @@ describe('C-11 script (migration_parity.sql)', () => {
     }
   });
 
-  it('fixes the version of every applied migration and of no other', () => {
+  it('fixes the version of every applied migration: all eight since EVAL-091', () => {
     const fixed = rows.filter((r) => r.version).map((r) => `${r.version}_${r.name}.sql`);
-    expect(fixed).toEqual(files.slice(0, 5));
-    expect(rows.slice(5).every((r) => r.version === undefined)).toBe(true);
+    expect(fixed).toEqual(files);
   });
 
   it('accepts only the preserved stored statement for M-4', () => {

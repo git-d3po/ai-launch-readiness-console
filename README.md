@@ -8,7 +8,7 @@ Postgres is the trust boundary. Visitors read a canonical launch they can't chan
 
 - **Stage 2 is implemented in this repository:** the sandbox database migrations M-4 to M-6 and the UI (gate sheet, sandbox forms, "Visitor" labels, safe source links, the global sandbox reset, an About page). It is verified locally against disposable databases. `main` is the release branch; development happens on `claude/phase1-schema` and reaches `main` through reviewed pull requests.
 - **Nothing is publicly hosted.**
-- **The connected production database is at Stage 1 + M-4 only.** Stage 2 is incomplete: M-4 was applied on 2026-10-03, and the window stopped on a migration-parity mismatch before M-5 and M-6 (EVAL-088 in the [evaluation log](docs/evaluation/EVALUATION_LOG.md)). Frontend deployment is prohibited until Stage 2 is complete and verified.
+- **The connected production database is at Stage 2:** migrations M-4 to M-6 and a corrective migration are applied and verified (2026-10-03, EVAL-091 in the [evaluation log](docs/evaluation/EVALUATION_LOG.md)). The frontend isn't deployed yet; hosting needs its own authorization.
 
 ## Stack
 
@@ -62,7 +62,7 @@ The host is Railway, building `main`, on its generated `.up.railway.app` domain 
 
 ## Database compatibility
 
-The Stage 2 application code requires migrations M-4 to M-6. **Don't host it against the current production schema (Stage 1 + M-4 only):** its reads and writes would fail. Production database changes go only through the deployment runbook in [§20 of the reconciliation record](docs/security/2026-10-02-audit-2b-reconcile.md#20-stage-2-deployment-runbook-deployment-preparation-2026-10-02-after-eval-086), with the owner's explicit authorization, not through anything in this README.
+The Stage 2 application code requires migrations M-4 to M-6. Production now has them (EVAL-091). Before that, the app must not be hosted against an earlier schema: its reads and writes would fail. Production database changes go only through the deployment runbook in [§20 of the reconciliation record](docs/security/2026-10-02-audit-2b-reconcile.md#20-stage-2-deployment-runbook-deployment-preparation-2026-10-02-after-eval-086), with the owner's explicit authorization, not through anything in this README.
 
 ## Documentation
 

@@ -15,9 +15,10 @@
 -- transport decoded 24 escape texts in it. That exact statement is preserved
 -- and verified in docs/evaluation/artifacts/2026-10-03-m4-transport-incident/,
 -- and the reviewed file keeps md5 23dd3270cdca77001fe2f9a86917d518. No other
--- version and no other md5 is accepted for it. Versions not yet applied are
--- matched by name, since Supabase assigns the version when it applies them;
--- after the DR-009 rename, fix each version here in the same commit.
+-- version and no other md5 is accepted for it. A version not yet applied is
+-- matched by name (null here), since Supabase assigns the version when it
+-- applies it; after the DR-009 rename, fix it here in the same commit. All
+-- eight are applied and fixed since 2026-10-03 (EVAL-091).
 --
 -- Read-only: one SELECT. It writes nothing, and is safe on production (I19).
 -- Its text is printable ASCII with no backslash, like the migrations it
@@ -33,9 +34,9 @@ expected(ord, version, name, md5) as (values
   (3, '20261002093521', 'revoke_rls_auto_enable_execute', '4842aef718ae632952d694863d244b8c'),
   (4, '20261002160901', 'stage1_security_hardening', 'f66a638dfb93554ad4f1a2bac0826304'),
   (5, '20261003183331', 'sandbox_provenance', '4b09ad34a82823aacf22d4afa63bad53'),
-  (6, null, 'sandbox_text_rules_reencode', 'ed1eca24d1efdd0e17578f20b7330973'),
-  (7, null, 'sandbox_seed', 'b6c04e38855362dc4d6d4cdd2be16a68'),
-  (8, null, 'sandbox_rpcs', '283c1e59342ece367e58c693f33c029a')
+  (6, '20261003194751', 'sandbox_text_rules_reencode', 'ed1eca24d1efdd0e17578f20b7330973'),
+  (7, '20261003195043', 'sandbox_seed', 'b6c04e38855362dc4d6d4cdd2be16a68'),
+  (8, '20261003195305', 'sandbox_rpcs', '283c1e59342ece367e58c693f33c029a')
 ),
 recorded as (
   select version, name, md5(array_to_string(statements, '')) as md5,

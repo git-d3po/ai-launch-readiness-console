@@ -56,7 +56,7 @@ export const POLICY = {
     reason: 'M-4, applied 2026-10-03 and never to be sent again. The transport decoded 24 of these escape texts; '
       + 'the stored statement is preserved exactly in docs/evaluation/artifacts/2026-10-03-m4-transport-incident/ (EVAL-088).',
   },
-  '20261003190146_sandbox_seed.sql': {
+  '20261003195043_sandbox_seed.sql': {
     nonAscii: { 0x2192: 1 },
     reason: "M-5. One reviewed U+2192 in set_gate_status's decision text, kept by owner decision (2026-10-03).",
   },

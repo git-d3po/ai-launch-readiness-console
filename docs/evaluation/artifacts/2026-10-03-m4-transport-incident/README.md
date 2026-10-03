@@ -38,4 +38,4 @@ It checks the reviewed file's md5 and length; the decoded statement's md5, chara
 ## What this does and doesn't establish
 
 - **Does:** the exact text production recorded for `20261003183331`, and that it differs from the reviewed file only in these 24 substitutions.
-- **Doesn't:** why the transport decoded these four escape texts and not the others. The repository file is the reviewed text and stays unchanged. The corrective migration `20261003190145_sandbox_text_rules_reencode.sql` restores the reviewed constraint text in the catalog.
+- **Doesn't:** why the transport decoded these four escape texts and not the others. The repository file is the reviewed text and stays unchanged. The corrective migration, `20261003194751_sandbox_text_rules_reencode.sql` since it was applied (authored as `20261003190145`), restored the reviewed constraint text in production's catalog (EVAL-091).

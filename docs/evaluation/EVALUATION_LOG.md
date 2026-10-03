@@ -127,6 +127,7 @@ migrations (`supabase/tests/local_roles.sql` first, for the `anon` and `authenti
 | EVAL-088 | 2026-10-03, 18:14 to 18:43 | Stage 2 production window: preflight twice, M-4 applied once, stopped on a C-11 mismatch | live read-only, live write | P1 to P7 pass; M-4 recorded as `20261003183331`; stored md5 `4b09ad34a82823aacf22d4afa63bad53` not the file's `23dd3270cdca77001fe2f9a86917d518`; M-5 and M-6 not applied; write surface closed, canonical data unchanged | Recorded only |
 | EVAL-089 | 2026-10-03, 19:05 to 19:20 | DR-026 local validation: production-replica and clean replays, the corrective's negative tests, C-11 script faults | local | Both paths converge on the Stage 2 baseline; 17/17, 7/7, 24/24, 29/29, 9/9, 6/6 on each; I14 0 mismatches; every fault refused atomically | Reproducible from repo (migrations, suites, verifier); the step harness and fault cases recorded only |
 | EVAL-090 | 2026-10-03, 19:04 to 19:23 | DR-026 repository validation; the tool path decoded the same four escape texts in a file write | local, build, static | Lint 8/8; 116/116 tests; lint mutants 5/5 caught; typecheck, build; hygiene found and fixed 4 raw bidi characters before commit | Reproducible from repo; the reproduction recorded only |
+| EVAL-091 | 2026-10-03, 19:32 to 19:56 | Stage 2 production window resumed: Stage 1 + M-4 preflight, corrective, M-5, M-6, V1 to V9 | live read-only, live write | P1 to P8 pass; three applies, each verified at once by C-11; 8 versions, C-11 PASS with the one M-4 exception; catalog 17/17; C-14 7/7; fingerprint = Stage 2 baseline; canonical data unchanged | Catalog, fingerprint, C-14 and C-11 reproducible from repo, read-only; the window recorded only |
 
 ---
 
@@ -1770,6 +1771,62 @@ All times in this section are UTC on **2026-10-03**. Local and repository work o
 - **Limitations:** which escape texts the tool path decodes is observed for six code points, not characterized.
 - **Reproducibility:** the lint, tests, verifier, build and checks are reproducible from repo; the hygiene finding is recorded only.
 
+## Stage 2 production deployment, resumed (2026-10-03, 19:32 to 19:58)
+
+All times in this section are UTC on **2026-10-03**. Starting commit: `3f1f01afa3ab22ce884172263ac70b68d66ca642` (`main`), clean, in sync with `origin/main`. Authorized by the owner for a new window: the §20 Stage 1 + M-4 preflight, then the corrective, M-5 and M-6 only if every check passed, then the post-deployment checks and these records.
+**Three production changes resulted: the corrective, M-5 and M-6, each applied once.** Every other production call in this section was read-only.
+
+### EVAL-091: Stage 2 production deployment completed under the DR-026 runbook
+- **Date:** 19:32 to 19:58 on 2026-10-03.
+- **Target:** live read-only, and three live writes.
+- **Connectors:** the normal "Supabase" connector for every read and check; a temporary "Supabase Deployment" connector (DR-024 amendment A1, added by the owner for this window) for exactly the three `apply_migration` calls. Both were present and distinguishable by their tool prefixes.
+- **Local preflight (before any production call):** HEAD `3f1f01a`, clean, 0/0 against `origin/main`; transport lint PASS for 8 files; the artifact verifier PASS; migration md5s as in §20; the lint and C-11 unit tests 36 of 36.
+- **Instruments:** every SQL check was sent as its committed file's query text: `migration_parity.sql`, the HEAD `fingerprint.sql`, `sandbox_invariants.sql` and `security_catalog.sql`, and the Stage 1 catalog instrument from `da583ab` (md5 `444656761f14b65700d0285f7f1e8752`). Leading comment headers, and the two comment lines inside the Stage 1 instrument, were left out; no executable text was changed.
+- **Preflight (19:32 to 19:47), all pass:**
+
+  | # | Result |
+  |---|---|
+  | P1 | `ai-launch-readiness-console`, us-west-2, `ACTIVE_HEALTHY`, Postgres `17.11.0.002` |
+  | P2 | Exactly 5 versions: the 4 Stage 1 versions, then `20261003183331` `sandbox_provenance`; no later name |
+  | P3 | C-11: rows 1 to 5 PASS (row 5 `4b09ad34a82823aacf22d4afa63bad53`, 3619 characters), rows 6 to 8 PENDING; overall PASS, "5 recorded, 3 pending" |
+  | P4 | HEAD fingerprint: all 12 parts equal §20's Stage 1 + M-4 table (`constraints` `0887380c748bd9214f38e3d6d87310b4`, `functions` `8389103e34beaefa36fa084837e7320b`, `canonical_data` `dc85e31b82116a9fa79adaac8399aa90`) |
+  | P5 | The six I14 constraints equal their transported md5s exactly |
+  | P6 | Stage 1 catalog instrument: 16 of 17; only check 15 fails, `differs: constraints, rls+owners`; checks 1 to 9 pass (7 tables with RLS, no write privilege, no executable function) |
+  | P7 | `read committed`; no override for the database, `anon`, `authenticated` or `authenticator` |
+  | P8 | Security: only INFO 0008 (RLS enabled, no policy) on `sandbox_state`, as §20 anticipates. Performance, INFO only: 0001 now lists 5 foreign keys, including M-4's `decisions_gate_same_launch` and `risks_gate_same_launch`; 0005 (unused indexes) wasn't listed this time |
+
+- **Corrective:** one `apply_migration` call through the Deployment connector, `name` `sandbox_text_rules_reencode`, `query` the file's text; sent 19:47:41, `{"success":true}` at 19:47:51.
+  - `list_migrations`: 6 versions; `20261003194751` `sandbox_text_rules_reencode` once, after `20261003183331`.
+  - C-11 at once: row 6 PASS, `ed1eca24d1efdd0e17578f20b7330973`, 5501 characters (the file's bytes); overall PASS, "6 recorded, 2 pending".
+  - The six constraints: the reviewed md5s (`fd7ab640f15373e4914dd240e790d5f0`, `5b5807225542933c1c67d6cc0ab151fc`, `36872f3318c6e758cf2d684d5abd67e8`, `1ccdf7c815fc3f3ebcbed26ab8a977c6`, `ded9db6592d3ffba218ddd1c5c4b8080` twice), all printable ASCII. The catalog no longer holds a bidi character.
+  - Fingerprint: `constraints` `a7f08cda3a69929594e9dad491fac570`, `functions` `8389103e34beaefa36fa084837e7320b`, `canonical_data` unchanged, other parts unchanged. Write surface: 0 table or column write privileges, 0 executable functions, 0 sequence privileges. Stage 1 catalog: 16 of 17, check 15 `differs: constraints, rls+owners`.
+- **M-5:** one call through the Deployment connector, `name` `sandbox_seed`; sent 19:50:38, `{"success":true}` at 19:50:43.
+  - `list_migrations`: 7; `20261003195043` `sandbox_seed` once, next.
+  - C-11 at once: row 7 PASS, `b6c04e38855362dc4d6d4cdd2be16a68`, 20947 characters (20949 bytes; its one U+2192 arrived unchanged); overall PASS, "7 recorded, 1 pending".
+  - C-14: 7 of 7 (1 canonical and 1 sandbox launch; 16 gates each, mapped; sandbox evidence 10/10, decisions 4/4, risks 6/6, stages 3/3; no visitor rows; one `sandbox_state` row).
+  - Fingerprint: `functions` `9cf3a14ab12057f876a5a45e2250e592`, `constraints` and `canonical_data` unchanged. Stage 1 catalog: 16 of 17, check 15 `differs: constraints, rls+owners, functions`; check 9 passes: no function executable before M-6.
+- **M-6:** one call through the Deployment connector, `name` `sandbox_rpcs`; sent 19:53:01, `{"success":true}` at 19:53:05.
+  - `list_migrations`: 8; `20261003195305` `sandbox_rpcs` once, last.
+  - C-11 at once: row 8 PASS, `283c1e59342ece367e58c693f33c029a`, 8698 characters; overall PASS, "8 recorded, 0 pending".
+- **Post-deployment checks (19:53 to 19:56):**
+
+  | # | Result |
+  |---|---|
+  | V1 | 8 versions, each once, in order: `20261002092043`, `20261002092141`, `20261002093521`, `20261002160901`, `20261003183331`, `20261003194751`, `20261003195043`, `20261003195305` |
+  | V2 | The corrective, M-5 and M-6 renamed to those versions (`R100`, md5s unchanged), and the versions fixed in `migration_parity.sql`, in this entry's commit |
+  | V3 | C-11 with the committed, version-fixed script (19:56): all 8 rows PASS; overall PASS, "8 recorded, 0 pending". `20261003183331` remains the one exception (`4b09ad34a82823aacf22d4afa63bad53`); every other version equals its file |
+  | V4 | HEAD catalog test: **17 of 17**. Check 9: `anon` and `authenticated` each execute exactly `sandbox_add_evidence`, `sandbox_reset`, `sandbox_set_gate_status`; check 15: 7 of 7 parts match; 7 functions, 29 relations, all owned by `postgres` |
+  | V5 | HEAD fingerprint: all 12 parts equal §20's final Stage 2 table |
+  | V6 | C-14: 7 of 7 |
+  | V7 | Security advisor: WARN 0028 and 0029 list exactly the three sandbox functions each, and INFO 0008 lists `sandbox_state`; nothing else. That is the R-6 Stage 2 wording. Performance: INFO 0001 only, as in P8 |
+  | V8 | `read committed`, 0 overrides |
+  | V9 | `canonical_data` `dc85e31b82116a9fa79adaac8399aa90`, equal to P4: no canonical row changed |
+
+- **Behavior on live: deferred, by rule.** No sandbox function was called, and B-4, the concurrency script, the integrity suite and the Stage 1 behavior test weren't run on production (I19; DR-025 item 5). Their evidence is local, on byte-identical SQL: EVAL-089 (both paths: B-4 29/29, concurrency 9/9, integrity 6/6, behavior 24/24). On live, the read-only checks show the boundary they rely on: no table write privilege, exactly the three functions executable, canonical rows unchanged, the sandbox present with seed provenance. The first exercise of the public API path is the hosted smoke test, §20 stage 5.
+- **Boundaries:** no retry, no `migration repair`, no ad hoc SQL, no history edit; Railway and the frontend untouched; repository visibility unchanged.
+- **Limitations:** the Deployment connector's `skip_elicitations` value was never readable; no confirmation hold occurred. The behavior limits above.
+- **Reproducibility:** the catalog, fingerprint, C-14 and C-11 checks are reproducible from repo, read-only; the window itself is recorded only.
+
 ## Not run (don't claim these)
 
 This list reflects the state after the deployment-path decision (about 14:25).
@@ -1784,6 +1841,8 @@ This list reflects the state after the deployment-path decision (about 14:25).
 **Update (2026-10-03, EVAL-088):** M-4 alone is applied to live, as `20261003183331`; its stored statement differs from the file in 24 escape substitutions, so C-11 fails for that version. Still not run on live: M-5, M-6, the HEAD catalog and fingerprint, C-14, V1 to V9, and the Stage 2 UI. Nothing is hosted.
 
 **Update (2026-10-03, EVAL-089, EVAL-090):** the DR-026 reconciliation (renames, the stored-statement artifact, the corrective, the transport lint, the C-11 script) is verified locally on both a production replica and a clean replay. Not run: any of it on live. The corrective, M-5 and M-6 aren't applied, and nothing is hosted.
+
+**Update (2026-10-03, EVAL-091):** Stage 2 is applied to live (8 versions) and verified there read-only: C-11 PASS with the one M-4 exception, catalog 17 of 17, C-14 7 of 7, fingerprint equal to the Stage 2 baseline, the advisor listing only the documented items. Still not run on live: any sandbox function call, B-4, concurrency and integrity (I19; local only, EVAL-089), and the app in a browser. Nothing is hosted.
 
 - **Production deployment of Stage 1 (as of 14:25; superseded, see the update above):** the migration was **not** applied to live, so live hasn't been verified after it. The deployment path is designated (DR-024), and the deployment is a separate, authorized run. On live, the catalog test passing 17 of 17, the fingerprint matching EVAL-045, and the 0028/0029 advisor lints clearing are expected but **unverified**.
 - **GitHub integration settings:** not applicable. No GitHub integration has ever been connected (EVAL-060). The earlier entry here assumed one might exist.
