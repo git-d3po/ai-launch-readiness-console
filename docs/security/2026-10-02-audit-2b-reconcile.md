@@ -300,7 +300,7 @@ I20 is checked after the rename: the repository and production must then agree o
 | S4 | Migration M-3: default privileges | None | I9 | **Applied to live** (EVAL-065); catalog check 14 passes there (EVAL-066) |
 | S5 | **Verify on production:**<br>• the catalog test passes<br>• the advisor shows no 0028 or 0029 lints<br>• migration hashes match<br>• the fingerprints match<br>• the integrity suite passes 6 of 6 **locally** | S1 to S4 | All Stage 1 invariants | **Done:** catalog 17 of 17, no 0028 or 0029 lints, fingerprint equal to EVAL-045 (EVAL-066); migration hashes match, C-11 PASS (EVAL-068). The integrity suite passed locally (EVAL-056, EVAL-061, EVAL-062) |
 | S6 | The owner checks the Auth dashboard settings and records them | None | Closes M1 | **Retired** with R-8 (DR-022), not passed: the settings stay unread |
-| Stage 2 | **At the start of the gate-sheet phase:**<br>• M-4: provenance, sandbox columns, composite keys, text checks<br>• M-5: `set_gate_status` gains an origin; the seed builds the sandbox<br>• M-6: the three sandbox functions<br>• application items A3 to A9 | D1 to D6 | I11 to I16 | **M-4 to M-6 in the repository and verified locally** (EVAL-071 to EVAL-078); not applied to live. A1 and A3 to A9 not started |
+| Stage 2 | **At the start of the gate-sheet phase:**<br>• M-4: provenance, sandbox columns, composite keys, text checks<br>• M-5: `set_gate_status` gains an origin; the seed builds the sandbox<br>• M-6: the three sandbox functions<br>• application items A3 to A9 | D1 to D6 | I11 to I16 | **M-4 to M-6 in the repository and verified locally** (EVAL-071 to EVAL-078); not applied to live. A1 and A3 to A9 are in the repository and verified locally (EVAL-079 to EVAL-086); nothing is hosted. Deployment follows the runbook in §20 |
 
 Stage 1 (S1 to S6) is the next implementation phase.
 
@@ -499,10 +499,10 @@ inside a rolled-back transaction.
 |---|---|---|
 | R-1 | D1 to D7 recorded in `DECISIONS.md`, and the brief's "Reset demo data" line updated | **Decisions recorded** in the commit that added this record. The brief line itself is kept verbatim as history, and a notice at the top of `PROJECT_BRIEF.md` supersedes it. |
 | R-2 | M-1, M-2 and M-3 applied through the single chosen path, with repository files renamed to the recorded versions | **Application met; the DR-009 rename completes it.** Applied once through the Supabase connector (DR-024; A1's temporary Deployment connector) at 16:09, recorded as `20261002160901` (EVAL-065). The file `20261002115318_stage1_security_hardening.sql` is renamed to `20261002160901_stage1_security_hardening.sql`, contents unchanged (`R100`; DR-009, EVAL-067). R-2 is satisfied by the repository rename being committed; the closeout commit carries it |
-| R-3 | C-1 to C-13 pass against production | **Passed** (16:29). On live after the migration: C-1 to C-10 pass as catalog checks 1 to 17, 17 of 17; C-12 holds, all 12 fingerprint parts equal EVAL-045; C-13 holds, no 0028 or 0029 lints (EVAL-066); C-11 passes, each stored statement's md5 equals its file, `20261002160901` `f66a638dfb93554ad4f1a2bac0826304` (EVAL-068). Before the migration the catalog test failed 4 of 17 (EVAL-048, EVAL-051, EVAL-059, EVAL-062) |
+| R-3 | C-1 to C-13 pass against production | **Passed** (16:29). On live after the migration: C-1 to C-10 pass as catalog checks 1 to 17, 17 of 17; C-12 holds, all 12 fingerprint parts equal EVAL-045; C-13 holds, no 0028 or 0029 lints (EVAL-066); C-11 passes, each stored statement's md5 equals its file, `20261002160901` `f66a638dfb93554ad4f1a2bac0826304` (EVAL-068). Before the migration the catalog test failed 4 of 17 (EVAL-048, EVAL-051, EVAL-059, EVAL-062)<br>**Stage 2: pending.** Re-run after M-4 to M-6 with the Stage 2 instruments and expected values in §20 (post-deployment checks), C-14 included |
 | R-4 | B-1 to B-3 pass on an ephemeral database built from the repository, and C-12 parity holds | **Met locally:** 24 of 24 (EVAL-043), and again with 41 reject cases (EVAL-056); pre-Stage-1 parity with live holds (EVAL-039, EVAL-051) |
 | R-5 | The integrity suite passes 6 of 6 locally; Vitest, typecheck and build are green | **Met** (EVAL-044, EVAL-047; again in EVAL-056 and EVAL-058) |
-| R-6 | The security advisor shows no `anon` or `authenticated` SECURITY DEFINER lints | **Met** (16:11, EVAL-066): the security advisor returns no lints. Before the migration 0028 and 0029 listed the two functions (EVAL-049, EVAL-051, EVAL-059, EVAL-062)<br>**Update (DR-025), wording for Stage 2:** the advisor lists `anon` or `authenticated` SECURITY DEFINER findings (0028, 0029) only for the functions on I4's allowlist, each a documented public endpoint. Stage 1: none. Stage 2: exactly `sandbox_add_evidence`, `sandbox_set_gate_status` and `sandbox_reset` under each lint, and no other function; any other function listed fails the gate |
+| R-6 | The security advisor shows no `anon` or `authenticated` SECURITY DEFINER lints | **Met** (16:11, EVAL-066): the security advisor returns no lints. Before the migration 0028 and 0029 listed the two functions (EVAL-049, EVAL-051, EVAL-059, EVAL-062)<br>**Update (DR-025), wording for Stage 2:** the advisor lists `anon` or `authenticated` SECURITY DEFINER findings (0028, 0029) only for the functions on I4's allowlist, each a documented public endpoint. Stage 1: none. Stage 2: exactly `sandbox_add_evidence`, `sandbox_set_gate_status` and `sandbox_reset` under each lint, and no other function; any other function listed fails the gate<br>**Stage 2: pending** until the post-deployment advisor check in §20 |
 | R-7 | The history and bundle secret scans are clean | **Met with detect-secrets:** no real secrets in the full history (EVAL-057) or the production bundle (EVAL-058). gitleaks couldn't be installed (network policy), and GitHub secret scanning isn't available on this repository |
 | R-8 | The Auth dashboard settings are checked and recorded; signups disabled or confirmed harmless | **Retired, not passed** (DR-022). Auth is intentionally not used; the release instead requires catalog checks 13 and 15 on every deployment (`anon` and `authenticated` hold identical privileges and policies). The settings stay unread: a documented tradeoff, not a security advantage |
 | R-9 | The GitHub integration deploy settings are confirmed before anything merges to `main` | **Met** by the deployment-path decision (DR-024, 14:15). The Supabase connector is the designated single path and has applied every production migration (EVAL-022, EVAL-059). No GitHub integration has ever been connected (owner-verified at 13:54, EVAL-060), and no CI workflow exists, so nothing deploys from `main`. The earlier "Open, blocking" status (EVAL-052, EVAL-053) rested on a misreading, corrected in DR-019 and EVAL-052 |
@@ -512,7 +512,7 @@ inside a rolled-back transaction.
 
 | Gate | Condition | Status |
 |---|---|---|
-| R-11 | A3 to A7 shipped | Built in the repository and verified locally (EVAL-081 to EVAL-086); **not shipped**: nothing is hosted, and M-4 to M-6 aren't applied to live |
+| R-11 | A3 to A7 shipped | Built in the repository and verified locally (EVAL-081 to EVAL-086); **not shipped**: nothing is hosted, and M-4 to M-6 aren't applied to live. Closes only after §20 stages 3 to 5: database deployed and verified, frontend hosted, smoke test passed |
 | R-12 | **Production headers set:**<br>• CSP `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src https://<project>.supabase.co; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'`<br>• `X-Content-Type-Options: nosniff`<br>• `Referrer-Policy: strict-origin-when-cross-origin`<br>• `Permissions-Policy: camera=(), microphone=(), geolocation=()`<br>• HTTPS with HSTS | Not started (nothing hosted) |
 | R-13 | One clean Report-Only CSP pass before the header is enforced | Not started |
 
@@ -940,3 +940,166 @@ Recorded before the UI work starts. They settle what §10, the sections above, S
 - **Update (2026-10-02, after EVAL-084):** A5 is in the repository: the "Visitor" label on listed evidence and decisions, decided by `origin` alone (EVAL-084; **A5 as built** above). A7 isn't built.
 - **Environment compatibility (2026-10-02, after EVAL-084):** Since `b423012`, the application's Stage 2 reads, and A4's writes, require M-4 to M-6. The application must not be hosted against the connected Stage 1 schema until those migrations are applied through the authorized deployment path. This is a documentation note only; no migration was applied.
 - **Update (2026-10-02, after EVAL-086):** A7 is in the repository: the header "Reset sandbox" behind a confirmation, calling only `sandbox_reset()` and refreshing after every outcome, usable while a gate sheet is open, and the launch list's last-good-content refresh (EVAL-085, EVAL-086; **A7 as built** above). A1 and A3 to A9 are now in the repository and verified locally. Nothing is applied to live or hosted; the environment note above still holds.
+- **Update (2026-10-02, after EVAL-086, deployment preparation):** the Stage 2 deployment runbook is in §20. It is preparation only: nothing was run on production, and no deployment is authorized by it.
+
+## 20. Stage 2 deployment runbook (deployment preparation, 2026-10-02, after EVAL-086)
+
+This is the authoritative procedure for taking Stage 2 to production and to a public release. It adds no decision: it assembles DR-024 (the migration path and its Amendment A1), DR-025 (Stage 2 and read-only verification), DR-009 (recorded versions), §11 (release gates), §19 (expected values and the isolation check) and the evaluation log. Where a value here and an older entry differ, the entry this section cites as final governs, and the older one is marked superseded below. **Nothing in this section has been run against production.**
+
+### Stages and authorization
+
+Each stage needs the previous one complete. **No stage authorizes the next:** stages 2, 4, 5 and 6 each need the owner's explicit authorization for that stage.
+
+| Stage | State | Who moves it forward | Exit condition |
+|---|---|---|---|
+| 1 | **Repository ready.** Stage 2 database (M-4 to M-6) and UI (A1, A3 to A9) in the repository and verified locally (EVAL-071 to EVAL-086). **Current stage.** | The owner, by authorizing stage 2 | Owner decisions recorded or explicitly deferred (below); authorization given |
+| 2 | **Database deployment authorized.** A dated, explicit owner authorization for one Stage 2 database window, including how the connector's confirmation is handled. | The deployer, by running the preflight and then the three applications | Preflight passed; M-4, M-5 and M-6 applied once each |
+| 3 | **Database deployed and verified.** Post-deployment checks passed; files renamed and parity proven; evidence committed. | The owner, by authorizing stage 4 | Every post-deployment check passes |
+| 4 | **Frontend deployed, not released.** Built with the live values, hosted with the SPA fallback, HTTPS and headers, CSP in Report-Only. The URL isn't shared. | The owner, by authorizing stage 5 | Hosted build loads; headers present |
+| 5 | **Production smoke test complete.** The first exercise of the public API path; mutates sandbox data only. | The owner, by authorizing stage 6 | Every smoke step passes; sandbox reset at the end; canonical data unchanged |
+| 6 | **Public release.** CSP enforced after a clean Report-Only pass; R-11 to R-13 closed; URL shared. | Not applicable | Gates closed and recorded |
+
+### Do not do (before the stage that authorizes it)
+
+- Apply M-4, M-5 or M-6 to production.
+- Retry a failed or uncertain production migration automatically, or apply one twice.
+- Use `supabase migration repair` or any other history-only tool.
+- Run ad hoc SQL on production as a substitute for a migration, or any production SQL that writes.
+- Run the integrity suite, `stage1_behavior.sql`, `stage2_sandbox_behavior.sql` or `stage2_concurrency.sh` against production (I19).
+- Call `sandbox_add_evidence`, `sandbox_set_gate_status` or `sandbox_reset` on production to test a migration (DR-025 item 5).
+- Host the Stage 2 frontend against the Stage 1 schema (environment compatibility note, §19 status).
+- Enforce the CSP before the Report-Only pass (R-13).
+- Share or announce the public URL before the smoke test passes.
+- Put a service-role key, database password or any secret in frontend configuration, a `VITE_` variable or the repository (I1, DR-011).
+- Connect the Supabase GitHub integration as a deployment path (DR-024).
+
+### Owner decisions still open
+
+These are product and operating choices, not technical blockers. None is decided here.
+
+1. **Static hosting provider.** None is chosen (DR-004 assumptions).
+2. **Release branch.** Whether and when `claude/phase1-schema` merges to `main`, and which branch the host builds.
+3. **The About placeholder.** "About" is in the global navigation and shows "This screen is not built yet." Either build a minimal About page or remove the link for the public demo.
+4. **The Risk register and Decision log placeholders.** Reachable only by typing `/launches/:id/risks` or `/launches/:id/decisions`; they show the same placeholder. Decide whether they stay as placeholders, become Not found, or are built. Stage 2's scope excludes them (§19, Gate sheet).
+5. **Domain.** Whether the host's default domain is enough, or a custom domain is wanted.
+6. **Availability.** The free plan pauses inactive projects (L2), which would take the demo down. Decide on the plan, monitoring, or both.
+
+### Database deployment order and dependencies
+
+| Order | Migration | Authored file (md5, bytes) | Depends on | Grants to API roles |
+|---|---|---|---|---|
+| 1 | M-4 `sandbox_provenance` | `20261002170823_sandbox_provenance.sql` (`23dd3270cdca77001fe2f9a86917d518`, 3739) | Stage 1 (`20261002160901`) | None |
+| 2 | M-5 `sandbox_seed` | `20261002170824_sandbox_seed.sql` (`b6c04e38855362dc4d6d4cdd2be16a68`, 20949) | M-4's `record_origin`, `origin`, `source_launch_id`, `source_gate_id` | None: `set_gate_status`, `build_sandbox()` and `reset_demo_data()` stay owner-only |
+| 3 | M-6 `sandbox_rpcs` | `20261002170825_sandbox_rpcs.sql` (`283c1e59342ece367e58c693f33c029a`, 8698) | M-5's `set_gate_status(..., origin)` and the sandbox it builds | EXECUTE on exactly `sandbox_add_evidence`, `sandbox_set_gate_status`, `sandbox_reset` |
+
+The md5s were recomputed from the repository files for this section and equal EVAL-078.
+
+**Safe intermediate states:** M-4 and M-5 give the API roles no new privilege, so a stop after either leaves no public write path; the Stage 1 read-only boundary still holds. Only M-6 creates the public surface, and it is the approved I4 allowlist. The Stage 2 app isn't hosted at any of these points.
+
+### Production mutation boundary: applying the migrations (stage 2)
+
+Applying M-4 to M-6 **changes production** and is effectively irreversible: undoing it means new migrations, and the history keeps every applied version. It needs the owner's explicit authorization for this window (DR-024 Safety).
+
+- **Path:** the Supabase connector only (DR-024). One `apply_migration` call per migration, in the order above; `name` is the file's name part (`sandbox_provenance`, `sandbox_seed`, `sandbox_rpcs`) and `query` is the file's exact bytes.
+- **Between calls:** read `list_migrations` and record the version Supabase assigned before the next call.
+- **Failure or uncertainty:** stop at once. No automatic retry. A timeout is uncertain, not a failure: read `list_migrations` (and, if needed, the fingerprint) to learn what happened before anything else, and report to the owner. Never fall back to ad hoc SQL or `migration repair`.
+- **The connector's confirmation:** M-5 runs `drop function public.set_gate_status(...)`, and function bodies contain `truncate` and `delete`. The connector may ask to confirm SQL it detects as destructive, and this client didn't display that request in the Stage 1 window (EVAL-062, EVAL-063). Under DR-024 Amendment A1, a temporary `skip_elicitations=apply_migration` setting needs the owner's own explicit authorization for this window, is set by the owner outside the repository, and is removed afterwards whatever the outcome. A client that shows the confirmation is the alternative. This section doesn't enable or change the setting.
+
+### Preflight (stage 2, before the first `apply_migration`)
+
+All checks are read-only. Run SQL in a read-only transaction where the tool allows it. Any stop condition ends the window before anything is applied.
+
+**Instruments:** the HEAD `fingerprint.sql` selects `launches.source_launch_id`, a Stage 2 column, so on the Stage 1 database it errors instead of reporting. The HEAD `security_catalog.sql` describes Stage 2 (check 9's allowlist, check 15's values), so on Stage 1 it fails checks 9 and 15 by design, which must not be read as a regression. The preflight therefore uses the Stage 1 instruments that passed on live in EVAL-066: `supabase/tests/security_catalog.sql` (md5 `444656761f14b65700d0285f7f1e8752`) and `supabase/tests/fingerprint.sql` (md5 `006e243bd4bb725d17d2dd12ecef88f2`) as of `e74aaaf`, unchanged through `da583ab` (`git show da583ab:supabase/tests/<file>`).
+
+| # | Check | Kind | Pass condition | Stop condition | Reference |
+|---|---|---|---|---|---|
+| P1 | Project status (`get_project`) | Read-only | Active and healthy, not paused or restoring | Any other status | L2; DR-005 |
+| P2 | Migration history (`list_migrations`) | Read-only | Exactly 4: `20261002092043` `phase1_schema`, `20261002092141` `demo_seed`, `20261002093521` `revoke_rls_auto_enable_execute`, `20261002160901` `stage1_security_hardening` | Any other count, version or name | EVAL-068; DR-024 step 3 |
+| P3 | C-11 parity for the 4 (EVAL-022's query) | Read-only | Each stored statement's md5 equals its file: `2d4cf41fe73b0d2801dd51d69ece8e1b`, `d3dafe0c87fc0af20d00d518e96f0380`, `4842aef718ae632952d694863d244b8c`, `f66a638dfb93554ad4f1a2bac0826304` | Any mismatch | EVAL-022, EVAL-068 |
+| P4 | Fingerprint, Stage 1 instrument | Read-only | All 12 parts equal EVAL-045, including `seed_data` `dc85e31b82116a9fa79adaac8399aa90` (canonical data hasn't drifted) | Any part differs | EVAL-045, EVAL-066 |
+| P5 | Catalog test, Stage 1 instrument | Read-only | 17 of 17 | Any FAIL | EVAL-066 |
+| P6 | **Isolation (release blocker)** | Read-only | `read committed`, and no incompatible override (query below) | Any other default, or any override for the database, `anon`, `authenticated` or `authenticator` other than `read committed` | §19 Evaluation; M-6 Isolation |
+| P7 | Security and performance advisors | Read-only | Informational: recorded as found. The Stage 1 baseline was no security lints (EVAL-066) | A new security lint is investigated before applying | EVAL-066 |
+
+P6 matters because all three sandbox functions refuse REPEATABLE READ and SERIALIZABLE with P0001 (§19). Any other effective level makes every sandbox call fail, so it blocks deployment. The query:
+
+```sql
+show default_transaction_isolation;
+
+select coalesce(d.datname, '(every database)') as database,
+       coalesce(r.rolname, '(every role)') as role,
+       c as setting
+from pg_db_role_setting s
+left join pg_database d on d.oid = s.setdatabase
+left join pg_roles r on r.oid = s.setrole
+cross join lateral unnest(s.setconfig) as c
+where (s.setdatabase = 0 or d.datname = current_database())
+  and (s.setrole = 0 or r.rolname in ('anon', 'authenticated', 'authenticator'))
+  and c like 'default_transaction_isolation=%';
+```
+
+Pass: the first returns `read committed`; the second returns no rows, or only `default_transaction_isolation=read committed`.
+
+### Post-deployment checks (stage 3, after M-6)
+
+All checks are read-only and use the HEAD instruments. No sandbox function is called (DR-025 item 5).
+
+| # | Check | Pass condition | Reference |
+|---|---|---|---|
+| V1 | Migration history | 7 versions: the 4 from P2, then the 3 versions Supabase recorded for M-4, M-5, M-6, in that order, each once | DR-024 steps 5 and 7 |
+| V2 | File reconciliation | Each new file renamed to its recorded version, contents unchanged (DR-009, DR-024 step 6). Parity evidence counts only after the rename | DR-009 |
+| V3 | C-11 parity for all 7 | The 4 md5s from P3, and for the new 3: `23dd3270cdca77001fe2f9a86917d518`, `b6c04e38855362dc4d6d4cdd2be16a68`, `283c1e59342ece367e58c693f33c029a`. The connector stores each file as one statement; if a tool ever splits statements, compare them with the file instead (§16) | EVAL-068 |
+| V4 | Catalog test (HEAD) | 17 of 17. Check 9: API roles execute exactly `sandbox_add_evidence`, `sandbox_set_gate_status`, `sandbox_reset`. Check 15: 7 of 7 against the values below | EVAL-078 |
+| V5 | Fingerprint (HEAD) | All 12 parts equal the table below | EVAL-072, EVAL-078 |
+| V6 | C-14 (`sandbox_invariants.sql`, as `postgres`, read-only) | 7 of 7 | EVAL-078 |
+| V7 | Security advisor | Lints 0028 and 0029 list exactly the three sandbox functions; INFO lint 0008 (RLS enabled, no policy) on `sandbox_state` is intended (§19, M-4). Any other security lint blocks release (R-6) | R-6; §19 |
+| V8 | Isolation | P6 again, same pass condition | §19 |
+| V9 | Canonical isolation | V5's `canonical_data` equals P4's `seed_data`, `dc85e31b82116a9fa79adaac8399aa90`: the deployment changed no canonical row | DR-025 item 4 |
+
+Then commit and push the renamed files and the evaluation records (DR-024 step 9). Any failure stops the release at stage 3 for diagnosis; it isn't fixed on production by hand.
+
+**Final expected Stage 2 fingerprint** (12 parts; V5):
+
+| Part | md5 |
+|---|---|
+| canonical_data | `dc85e31b82116a9fa79adaac8399aa90` |
+| column_write_grants | empty (`d41d8cd98f00b204e9800998ecf8427e` in catalog check 15) |
+| columns | `5ccb40dee76743f39a4925c451918d8b` |
+| constraints | `a7f08cda3a69929594e9dad491fac570` |
+| enums | `340c40cc9480c4f6a58b865484673882` |
+| functions | `849220530a3d4b56a35f4e154a6d19e6` |
+| indexes | `77508543fc9b1654352bd6731e735112` |
+| policies | `5413a6d3b0520ccf75b53f4f7067bef1` |
+| rls+owners | `212e4cf60f3f93c8149028d284bd0282` |
+| table_grants | `81ed597a2d217bdefda59babdc03008a` |
+| user_triggers | `334c4a4c42fdb79d7ebc3e73b517e6f8` |
+| views | `6c60d69e83dedcece4f5b8c698c2ba7e` |
+
+The seven security parts equal catalog check 15's embedded values. **Superseded:** EVAL-072's `functions` value `fce65ee849d92f05c1319787a5c08633` and EVAL-075's `04dd6a74f664cd7a92deb5d491a90e8f` belong to earlier function bodies; the final files give `849220530a3d4b56a35f4e154a6d19e6` (EVAL-078). Every other part is unchanged from EVAL-072 (EVAL-078).
+
+### Frontend deployment (stage 4)
+
+- Build with `npm run build`, with `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` set in the host's build environment; Vite inlines them, so a build without them shows the "not configured" error. The publishable key comes from the owner (DR-011).
+- Static hosting of `dist/` with every application route rewritten to `/index.html` (the app uses `BrowserRouter`; deep links such as `/launches/2/gates/30` must load).
+- HTTPS with HSTS, and the R-12 headers, with the CSP first sent as `Content-Security-Policy-Report-Only` (R-13). `connect-src` names the project's own `https://<project-ref>.supabase.co`, supplied at configuration time, not written into the repository. The current build needs nothing beyond R-12's policy: one same-origin script and stylesheet, no inline script or style, no websocket (checked in the release-readiness review).
+- The URL stays unshared until stage 6.
+
+### Production smoke test (stage 5, not yet run)
+
+The hosted app is the first exercise of the public API path (DR-025 item 5). It **mutates sandbox data only** and needs its own authorization. Record the canonical fingerprint (read-only) before and after.
+
+1. Reads: the launch list (one canonical launch and its sandbox, with the Sandbox badge); the canonical overview, read-only, with "Try this in the sandbox"; the sandbox overview with the banner; a gate sheet by deep link; Back, Escape and Close.
+2. Sandbox evidence: add one item on a sandbox gate; it appears with the "Visitor" label, its source as plain text, and the overview's count updates.
+3. Sandbox status: change that gate's status with a rationale; the latest decisions show it with "Visitor" beside "Sandbox visitor".
+4. Reset: "Reset sandbox" from the header with the sheet open; confirm; "Sandbox reset"; the visitor item and decision disappear and the gate's status returns to its source.
+5. Cooldown: an immediate second reset shows the database's cooldown message verbatim and refreshes.
+6. Canonical unchanged: the canonical fingerprint (`canonical_data` `dc85e31b82116a9fa79adaac8399aa90`) is unchanged, and C-14 is 7 of 7.
+7. End state: the sandbox is reset (step 4); the cooldown stays active for up to 5 minutes afterwards.
+
+### Public release (stage 6)
+
+After a clean Report-Only pass, enforce the CSP (R-13, then R-12); close R-11; record the evaluations and update the status records; then share the URL.
+
+### Release gates at this stage
+
+R-1, R-2 (Stage 1), R-4, R-5, R-7, R-9 and R-10 are met; R-8 is retired. Still open: **R-3** and **R-6** for Stage 2 (after V4 to V7), **R-11** (stages 3 to 5), **R-12** and **R-13** (stages 4 and 6). Repository readiness (stage 1) closes none of them.

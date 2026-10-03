@@ -23,13 +23,15 @@ Audit 1's original rating is kept beside the revised one.
 
 | ID | Finding | Audit 1 ID | Original | Revised | Confirmed | Remediation specified | In the repository | Applied to live |
 |---|---|---|---|---|---|---|---|---|
-| SEC-001 | Anonymous callers can forge readiness and impersonate approvers | C1 | Critical | High | Yes | Yes | Stage 1 part: yes | Stage 1 part: **yes** (EVAL-065, EVAL-066) |
-| SEC-002 | Anonymous callers can truncate and re-seed all launch data | C2 | Critical | Medium | Partially (it restores the seed) | Yes | Stage 1 part: yes | Stage 1 part: **yes** (EVAL-065, EVAL-066) |
-| SEC-003 | Unbounded public writes can push the database into read-only mode | H1, N1 | High | High | Yes | Yes | Stage 1 part (zero public writes): yes | Stage 1 part: **yes** (EVAL-065, EVAL-066) |
-| SEC-004 | Visitor text is shown as authoritative on the canonical overview | H3, H4 | High, High | Medium; H4 Low | Yes | Yes | Stage 1 part: yes | Stage 1 part: **yes** (EVAL-065, EVAL-066) |
-| SEC-005 | `evidence.source` accepts `javascript:` and other unsafe URLs | H2 | High | Low (latent) | Yes | Yes | Database rule: yes | Database rule: **yes** (EVAL-065, EVAL-066) |
+| SEC-001 | Anonymous callers can forge readiness and impersonate approvers | C1 | Critical | High | Yes | Yes | Stage 1 part: yes. Stage 2 part: yes (database EVAL-071 to EVAL-078; UI EVAL-081 to EVAL-086) | Stage 1 part: **yes** (EVAL-065, EVAL-066). Stage 2 part: no |
+| SEC-002 | Anonymous callers can truncate and re-seed all launch data | C2 | Critical | Medium | Partially (it restores the seed) | Yes | Stage 1 part: yes. Stage 2 part (`sandbox_reset`, A7): yes (EVAL-071 to EVAL-078, EVAL-085, EVAL-086) | Stage 1 part: **yes** (EVAL-065, EVAL-066). Stage 2 part: no |
+| SEC-003 | Unbounded public writes can push the database into read-only mode | H1, N1 | High | High | Yes | Yes | Stage 1 part (zero public writes): yes. Stage 2 caps: yes (EVAL-071 to EVAL-078; cap messages EVAL-083) | Stage 1 part: **yes** (EVAL-065, EVAL-066). Stage 2 part: no |
+| SEC-004 | Visitor text is shown as authoritative on the canonical overview | H3, H4 | High, High | Medium; H4 Low | Yes | Yes | Stage 1 part: yes. Stage 2 part: yes (provenance, I14, I15: EVAL-071 to EVAL-078; Visitor labels: EVAL-084) | Stage 1 part: **yes** (EVAL-065, EVAL-066). Stage 2 part: no |
+| SEC-005 | `evidence.source` accepts `javascript:` and other unsafe URLs | H2 | High | Low (latent) | Yes | Yes | Database rule: yes. Rendering rule (A6): yes (EVAL-082, EVAL-083) | Database rule: **yes** (EVAL-065, EVAL-066). Rendering rule: not hosted |
 | SEC-006 | Default privileges give API roles privileges on future tables | H5 | High | Low | Yes (facts) | Yes | Yes | **Yes** (EVAL-065, EVAL-066) |
 | SEC-007 | Functions that `postgres` creates are executable by PUBLIC by default | None (new in Stage 1) | n/a | Low (latent) | Yes | Yes: no default change; explicit revoke per function (DR-023) | Nothing to change in Stage 1; guarded by catalog check 9 | n/a (nothing to apply) |
+
+**Stage 2, current (2026-10-02, after EVAL-086):** the Stage 2 database controls (M-4 to M-6) and the Stage 2 UI controls (A1 error boundary, A3 sandbox marking, A4 canonical read-only pages and sandbox-only forms, A5 "Visitor" labels, A6 source rendering, A7 sandbox reset) are in the repository and verified locally (EVAL-071 to EVAL-086). **None of it is applied to live or hosted**: the live project is at Stage 1. Deployment follows the reconciliation record, §20. The dated blocks below are kept as written.
 
 **Stage 2 (2026-10-02, about 17:11):** the Stage 2 database controls for SEC-001, SEC-003 and SEC-004 (provenance, the sandbox functions, caps, database-set identity and dates, I14 text rules) are in the repository and verified locally (EVAL-071 to EVAL-074; re-verified after the review fixes, EVAL-075 to EVAL-078). They aren't applied to live, and the Stage 2 UI controls aren't built.
 

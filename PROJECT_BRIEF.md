@@ -8,7 +8,7 @@
 >   - **Stage 1** (no public writes, https-only evidence sources, closed default privileges) is in the repository, verified locally and pushed to `claude/phase1-schema` (DR-021). It isn't merged to `main`.
 >   - Stage 1 is **not yet applied to the live project**, which still had the Phase 1 public write paths when it was last read (2026-10-02, 13:39 UTC). The deployment path is designated (DR-024: the Supabase connector); applying Stage 1 is a separate, authorized run.
 >   - **Update (2026-10-02, about 16:21 UTC):** Stage 1 is now **applied to the live project** (migration `20261002160901`) and verified there read-only: the security catalog test passes 17 of 17, and the fingerprint equals the Stage 1 build (`docs/evaluation/EVALUATION_LOG.md`, EVAL-065 and EVAL-066).
->   - The Stage 2 sandbox isn't built.
+>   - **Update (2026-10-02, after EVAL-086):** Stage 2 (the sandbox database part, M-4 to M-6, and the UI, A1 and A3 to A9) is in the repository and verified locally. It isn't applied to the live project, which is at Stage 1, and nothing is hosted. Deployment follows the reconciliation record, §20.
 > - **Authentication:** the project deliberately doesn't use Supabase Auth at this stage (DR-020). That's an explicit tradeoff, not a security advantage, and the old Auth-settings release gate is retired (DR-022).
 > - **Build approach:** the project is built directly in this repository against its own Supabase project, not through Lovable (DR-004).
 
@@ -145,7 +145,7 @@ One launch: **"Halcyon Support Copilot"**, a fictional company's AI support copi
 | `/` | Redirect to `/launches` |
 | `/launches` | Launches list |
 | `/launches/:launchId` | Launch overview |
-| `/launches/:launchId/gates/:gateId` | Overview with gate side sheet open (deep-linkable; Back closes it; full-screen on mobile) |
+| `/launches/:launchId/gates/:gateId` | Overview with gate side sheet open (deep-linkable; Back closes it; full-screen on mobile). As built (A7), the sheet starts below the persistent global header, so on mobile it fills the viewport below that header |
 | `/launches/:launchId/risks` | Risk register |
 | `/launches/:launchId/decisions?gate=&risk=` | Decision log, filters held in the URL |
 | `/about` | About page |

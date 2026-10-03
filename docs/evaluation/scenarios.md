@@ -16,6 +16,8 @@ steps, the expected result, what is true **today**, and the specified tests that
 
 **Stage 2 (about 17:11):** the database part of the Stage 2 extensions in scenarios A to G is implemented and verified **locally**: `stage2_sandbox_behavior.sql` (B-4, 29 checks), `sandbox_invariants.sql` (C-14) and `stage2_concurrency.sh` (EVAL-071 to EVAL-074; re-verified after the review fixes, EVAL-075 to EVAL-078). It isn't applied to live, and the UI parts (A3 to A7) aren't built, so the Stage 2 labels below still read "specification" for the live product.
 
+**Stage 2 UI (after EVAL-086):** A1 and A3 to A7 are in the repository and verified locally (EVAL-079 to EVAL-086), so every Stage 2 extension in A to G now has a local check: B-4 and C-14 for the database, the unit tests and recorded browser walkthroughs for the UI. Nothing Stage 2 is applied to live or hosted. **The summary table below is current;** the labels inside each scenario section are kept as written and are superseded by it.
+
 **Rules for every behavior scenario** (Phase 2B invariant I19):
 - Run only against a local or ephemeral database built from this repository, never against production.
 - Run each step as `anon` **and** as `authenticated`, inside a transaction that rolls back.
@@ -27,14 +29,14 @@ Evidence IDs (EVAL-NNN) are in [`EVALUATION_LOG.md`](EVALUATION_LOG.md).
 
 | ID | Property | Label | Protects |
 |---|---|---|---|
-| A | Anonymous forged evidence or status changes can't alter the canonical launch | Stage 1: Implemented in the repository and verified locally; not applied to live. Stage 2 part: specification | SEC-001 |
-| B | Canonical reset isn't available to public visitors | Stage 1: Implemented in the repository and verified locally; not applied to live. Sandbox reset: specification | SEC-002 |
-| C | Unbounded evidence insertion isn't possible | Stage 1 (zero public inserts): Implemented in the repository and verified locally; not applied to live. Sandbox caps: specification | SEC-003 |
-| D | Passed requires evidence | Implemented rule, current check exists (Stage 2 part is a specification) | DR-001, DR-002 |
-| E | Waived requires waiver text, and the text survives the transition | Implemented rule, current check exists (Stage 2 part is a specification) | DR-008 |
-| F | Visitor provenance is never confused with canonical evidence | Specification / future regression scenario | SEC-001, SEC-004 |
-| G | Unsafe evidence URLs are rejected | Database rule: Implemented in the repository and verified locally; not applied to live. Rendering rule: specification | SEC-005 |
-| H | New tables and the two API roles stay closed by default | Implemented in the repository and verified locally; not applied to live (tables). Functions: open finding SEC-007, disposition DR-023 | SEC-006 |
+| A | Anonymous forged evidence or status changes can't alter the canonical launch | Stage 1: applied to live and verified (EVAL-065, EVAL-066). Stage 2 part (sandbox functions reject canonical gates; canonical pages read-only): implemented and verified locally (B-4 checks 4 to 7 and 23; EVAL-083), not applied to live | SEC-001 |
+| B | Canonical reset isn't available to public visitors | Stage 1: applied to live and verified (EVAL-065, EVAL-066). Sandbox reset: implemented and verified locally (B-4 checks 24 to 27; EVAL-085, EVAL-086), not applied to live | SEC-002 |
+| C | Unbounded evidence insertion isn't possible | Stage 1 (zero public inserts): applied to live and verified (EVAL-065, EVAL-066). Sandbox caps: implemented and verified locally (B-4 checks 16 and 17; concurrency; EVAL-083), not applied to live | SEC-003 |
+| D | Passed requires evidence | Implemented rule, current check exists. Stage 2 part: implemented and verified locally (B-4 checks 10 to 12), not applied to live | DR-001, DR-002 |
+| E | Waived requires waiver text, and the text survives the transition | Implemented rule, current check exists. Stage 2 part: implemented and verified locally (B-4 checks 13 and 14), not applied to live | DR-008 |
+| F | Visitor provenance is never confused with canonical evidence | Implemented and verified locally: `origin` set by the database (B-4 checks 2, 3 and 22), "Visitor" labels (EVAL-084); not applied to live | SEC-001, SEC-004 |
+| G | Unsafe evidence URLs are rejected | Database rule: applied to live and verified (EVAL-065, EVAL-066); through `sandbox_add_evidence`, verified locally (B-4 check 18). Rendering rule (A6): implemented and verified locally (EVAL-082, EVAL-083), not hosted | SEC-005 |
+| H | New tables and the two API roles stay closed by default | Tables: applied to live and verified (EVAL-065, EVAL-066). Functions: SEC-007, disposition DR-023; the Stage 2 functions' explicit revokes verified locally (EVAL-078), not applied to live | SEC-006 |
 
 ---
 
