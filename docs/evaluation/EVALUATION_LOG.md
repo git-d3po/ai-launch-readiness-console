@@ -120,6 +120,7 @@ migrations (`supabase/tests/local_roles.sql` first, for the `anon` and `authenti
 | EVAL-081 | 2026-10-02, after EVAL-080 | A3 and the refresh infrastructure | local, build | 34/34 tests; local browser check: badge, canonical-only chip, banner; no overflow at 390 px | Reproducible from repo (unit tests); browser check recorded only |
 | EVAL-082 | 2026-10-02, after EVAL-081 | A6: source rendering rule | local, build | 6 new tests, 40/40 in total; both security mutants caught | Reproducible from repo |
 | EVAL-083 | 2026-10-02, after EVAL-082 | A4: gate sheet, sandbox link, evidence and status forms | local, build | 60/60 tests; 29/29 local browser checks | Reproducible from repo (unit tests); browser walkthrough recorded only |
+| EVAL-084 | 2026-10-02, after EVAL-083 | A5: "Visitor" label on listed evidence and decisions | local, build | 5 new tests, 65/65 in total; 24/24 local browser checks | Reproducible from repo (unit tests); browser walkthrough recorded only |
 
 ---
 
@@ -1602,6 +1603,19 @@ Starting commit: `da583ab0188b9e6b34de99046909cecdbb8bc03b`, clean. Specificatio
   - **Refresh failure:** with reads made to fail after a successful write, both views kept their content and showed the refresh alerts with "Could not load data (code XX000)", not the raw message. No loading state replaced content during any refresh.
   - **Not built:** there is no standalone "Visitor" label (A5), and the header still has the disabled "Reset demo data" placeholder (A7).
   - **Layout:** at 390 px the sheet is full-screen with no horizontal scroll.
+- **Result:** typecheck exit 0; build succeeds.
+- **Reproducibility:** the unit tests are reproducible from repo; the browser walkthrough is recorded only.
+
+### EVAL-084: A5, the "Visitor" label on listed evidence and decisions
+- **Date:** 2026-10-02, after EVAL-083.
+- **Target:** local (Vitest; a Vite dev server against a local PostgREST on a disposable database built from the migrations, as `anon`) and build. No production call, and no change under `supabase/`, to packages or to configuration.
+- **Change:** `provenanceLabel` in `src/lib/provenance.ts` ("Visitor" for `origin` `visitor`, null for `seed`), `ProvenanceLabel` in `src/components/ProvenanceLabel.tsx` (the neutral chip), and one use each in `src/pages/GateSheet.tsx` (after the evidence type) and `src/pages/LaunchOverviewPage.tsx` (after the decider). No query, mutation, form, refresh or route changed.
+- **Tests:** `src/lib/provenance.test.ts`, 5 tests: visitor evidence labeled; seed evidence unlabeled; a visitor decision labeled; a seed decision unlabeled; and origin alone deciding, with a seed decision whose decider is "Sandbox visitor" unlabeled, a visitor decision with an ordinary decider labeled, a copied seed row unlabeled, and a visitor row without source or date labeled.
+- **Browser walkthrough (recorded only), 24 of 24.** On a fresh local database where one canonical seed row was given an https source (one earlier run stopped on a script error, choosing a status the gate already had, and was rerun on a rebuilt database):
+  - **Seed rows:** the canonical overview's 4 decisions, the sandbox overview's 4 copied decisions, canonical gate evidence and copied sandbox evidence show no label.
+  - **Visitor rows:** evidence added on a sandbox gate shows "Visitor" in its metadata row after the type (`Observation`, `Visitor`, the date), while the seed item beside it stays unlabeled. After a status change the overview shows 5 decisions; only the new one is labeled, after the unchanged decider "Sandbox visitor". Both labels persist after a full reload.
+  - **Unchanged:** the seed https source is still a link with the A6 `rel` and no `target`, and the visitor source is plain text; the canonical sheet has no form controls; the sheet has no decision heading; the form's "Recorded by: Visitor" line is present; the header's "Reset demo data" placeholder is still disabled.
+  - **Presentation:** both labels use the same neutral chip classes, with no emerald, amber or red. Text contrast is 16.03:1 in light mode and 18.11:1 in dark mode. No horizontal scroll at 390 px.
 - **Result:** typecheck exit 0; build succeeds.
 - **Reproducibility:** the unit tests are reproducible from repo; the browser walkthrough is recorded only.
 

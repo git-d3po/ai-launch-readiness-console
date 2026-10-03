@@ -1,6 +1,7 @@
 import { type FormEvent, type ReactNode, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useOutletContext, useParams } from 'react-router';
 import { focusRing, type RefreshContext } from '../components/AppShell';
+import { ProvenanceLabel } from '../components/ProvenanceLabel';
 import { SandboxBanner } from '../components/SandboxBanner';
 import { gateTone, StatusChip } from '../components/StatusChip';
 import { Constants } from '../lib/database.types';
@@ -231,6 +232,7 @@ function EvidenceItem({ evidence }: { evidence: GateEvidence }) {
     <li className="px-3 py-2.5">
       <div className="flex flex-wrap items-baseline gap-x-3">
         <span className="text-muted">{evidence.type}</span>
+        <ProvenanceLabel origin={evidence.origin} />
         {evidence.recordedOn && (
           <time dateTime={evidence.recordedOn} className="text-muted">
             {formatCalendarDate(evidence.recordedOn)}

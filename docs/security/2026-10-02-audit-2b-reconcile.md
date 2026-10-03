@@ -413,7 +413,7 @@ alter default privileges for role postgres in schema public revoke all on tables
 | A2 | Low priority | Route ids match `/^\d{1,15}$/`; anything longer goes to Not found (N5) |
 | A3 | Stage 2 | Sandbox banner, a "Sandbox" badge in the list; the title chip counts canonical launches only. **In the repository** (EVAL-081) |
 | A4 | Stage 2 | Canonical pages show no write controls and link to "Try this in the sandbox". **In the repository** (EVAL-083) |
-| A5 | Stage 2 | Visitor evidence and decisions show a "Visitor" label beside the type and the decider |
+| A5 | Stage 2 | Visitor evidence and decisions show a "Visitor" label beside the type and the decider. **In the repository** (EVAL-084) |
 | A6 | Stage 2 | **Rendering `source`:**<br>• visitor-origin `source` is plain text<br>• seed-origin `source` is a link only if `new URL(source).protocol === 'https:'`, with `rel="noopener noreferrer nofollow"` |
 | A7 | Stage 2 | The header button becomes "Reset sandbox", calls `sandbox_reset` behind a confirmation, and shows the cooldown message |
 | A8 | Stage 2 | Queries select `origin` and `source_launch_id`. **In the repository** (EVAL-080): launches and the overview select `source_launch_id`; the overview's decisions select `origin` |
@@ -892,7 +892,13 @@ Recorded before the UI work starts. They settle what §10, the sections above, S
   - **Sandbox link:** the overview finds the sandbox copy by `source_launch_id`; canonical overviews and canonical gate sheets link to that launch.
   - **Refresh failures:** the overview and the sheet keep their last good content and show a red alert above it ("Could not refresh this launch." or "…this gate.", with "Could not load data (code X)"). Nothing new was added for this; it is the existing alert style.
   - **Copy this section left open:** the 20-decision cap message follows the evidence cap's wording: "This gate has reached its 20 visitor decisions. Reset the sandbox to start again." The evidence form shows "Recorded by: Visitor · Date: today, set by the database", the fixed values this section says are shown, never entered; this is the form, not A5's labels on listed items.
-  - **Not built:** A5's "Visitor" labels on listed evidence and decisions, and A7's reset.
+  - **Not built:** A5's "Visitor" labels on listed evidence and decisions, and A7's reset. (A5 has since been built; see **A5 as built**.)
+- **A5 as built (2026-10-02, after EVAL-083; EVAL-084).**
+  - **Rule:** `provenanceLabel` (`src/lib/provenance.ts`) returns "Visitor" for a row whose `origin` is `visitor` and nothing for `seed`. It reads `origin` only, never the launch, the decider (`decided_by`), the source, dates or ids, so seed rows copied into the sandbox stay unlabeled. Both lists already received `origin` (A8 and A4); no query changed.
+  - **Evidence:** in the gate sheet's evidence list, the label sits in each item's metadata row, right after the type and before the date.
+  - **Decisions:** in the overview's Latest decisions, the label sits right after the decider, which is shown unchanged.
+  - **Presentation:** `ProvenanceLabel` renders the neutral chip the A3 "Sandbox" badge uses (stone tokens, no status color, DR-012). The word itself carries the meaning, not the color.
+  - **Unchanged:** the gate sheet still has no decision log; the evidence form's "Recorded by: Visitor · Date: today, set by the database" line, A6 source rendering, the forms, refresh, caps, routing and the reset placeholder are as A4 left them.
 
 ### Evaluation
 
@@ -921,3 +927,5 @@ Recorded before the UI work starts. They settle what §10, the sections above, S
 - **Update (2026-10-02, after EVAL-081, commit):** A3 and the refresh infrastructure are committed (`053aaf8`), validated in EVAL-081. A4 to A7 aren't built.
 - **Update (2026-10-02, after EVAL-082):** A6's rendering rule is implemented as `sourceView` in `src/lib/source.ts` and tested (EVAL-082). No page renders `source` yet; the gate sheet will use it. A4, A5 and A7 aren't built.
 - **Update (2026-10-02, after EVAL-083):** A4 is in the repository: the gate sheet, the canonical sandbox link, and the evidence and status forms (EVAL-083; **A4 as built** above). A5 and A7 aren't built.
+- **Update (2026-10-02, after EVAL-084):** A5 is in the repository: the "Visitor" label on listed evidence and decisions, decided by `origin` alone (EVAL-084; **A5 as built** above). A7 isn't built.
+- **Environment compatibility (2026-10-02, after EVAL-084):** Since `b423012`, the application's Stage 2 reads, and A4's writes, require M-4 to M-6. The application must not be hosted against the connected Stage 1 schema until those migrations are applied through the authorized deployment path. This is a documentation note only; no migration was applied.

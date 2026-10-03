@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { Link, useOutlet, useParams } from 'react-router';
 import { focusRing, useRefresh } from '../components/AppShell';
+import { ProvenanceLabel } from '../components/ProvenanceLabel';
 import { SandboxBanner } from '../components/SandboxBanner';
 import { gateTone, StatusChip } from '../components/StatusChip';
 import { Constants } from '../lib/database.types';
@@ -226,7 +227,10 @@ function Overview({ overview }: { overview: LaunchOverview }) {
                   {formatDecisionDate(d.decidedAt)}
                 </time>
                 <span className="break-words">{d.decision}</span>
-                <span className="text-muted">{d.decidedBy}</span>
+                <span className="flex flex-wrap items-baseline gap-x-2">
+                  <span className="text-muted">{d.decidedBy}</span>
+                  <ProvenanceLabel origin={d.origin} />
+                </span>
               </li>
             ))}
           </ul>
