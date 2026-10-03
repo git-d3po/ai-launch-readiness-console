@@ -6,7 +6,7 @@ Postgres is the trust boundary. Visitors read a canonical launch they can't chan
 
 ## Status
 
-- **Stage 2 is implemented in this repository** on branch `claude/phase1-schema` (not merged to `main`): the sandbox database migrations M-4 to M-6 and the UI (gate sheet, sandbox forms, "Visitor" labels, safe source links, the global sandbox reset). It is verified locally against disposable databases.
+- **Stage 2 is implemented in this repository:** the sandbox database migrations M-4 to M-6 and the UI (gate sheet, sandbox forms, "Visitor" labels, safe source links, the global sandbox reset, an About page). It is verified locally against disposable databases. `main` is the release branch; development happens on `claude/phase1-schema` and reaches `main` through reviewed pull requests.
 - **Nothing is publicly hosted.**
 - **The connected production database is at Stage 1**, not Stage 2. M-4 to M-6 aren't applied there.
 
@@ -50,7 +50,7 @@ Never put a service-role key, a database password or any other secret in a `VITE
 
 ## Hosting requirements
 
-No host is chosen yet. Whatever hosts it must provide:
+The host is Railway, building `main`, on its generated `.up.railway.app` domain for the initial release. Nothing is deployed yet, and Railway must not deploy `main` before the production database is at Stage 2. The host must provide:
 
 - static hosting of `dist/`;
 - a single-page-app fallback: every application route (for example `/launches/2/gates/30`) rewritten to `/index.html`;

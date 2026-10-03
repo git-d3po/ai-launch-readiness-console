@@ -953,7 +953,7 @@ Each stage needs the previous one complete. **No stage authorizes the next:** st
 
 | Stage | State | Who moves it forward | Exit condition |
 |---|---|---|---|
-| 1 | **Repository ready.** Stage 2 database (M-4 to M-6) and UI (A1, A3 to A9) in the repository and verified locally (EVAL-071 to EVAL-086). **Current stage.** | The owner, by authorizing stage 2 | Owner decisions recorded or explicitly deferred (below); authorization given |
+| 1 | **Repository ready.** Stage 2 database (M-4 to M-6) and UI (A1, A3 to A9) in the repository and verified locally (EVAL-071 to EVAL-087). **Current stage.** | The owner, by authorizing stage 2 | Owner decisions recorded or explicitly deferred (below); authorization given |
 | 2 | **Database deployment authorized.** A dated, explicit owner authorization for one Stage 2 database window, including how the connector's confirmation is handled. | The deployer, by running the preflight and then the three applications | Preflight passed; M-4, M-5 and M-6 applied once each |
 | 3 | **Database deployed and verified.** Post-deployment checks passed; files renamed and parity proven; evidence committed. | The owner, by authorizing stage 4 | Every post-deployment check passes |
 | 4 | **Frontend deployed, not released.** Built with the live values, hosted with the SPA fallback, HTTPS and headers, CSP in Report-Only. The URL isn't shared. | The owner, by authorizing stage 5 | Hosted build loads; headers present |
@@ -973,17 +973,18 @@ Each stage needs the previous one complete. **No stage authorizes the next:** st
 - Share or announce the public URL before the smoke test passes.
 - Put a service-role key, database password or any secret in frontend configuration, a `VITE_` variable or the repository (I1, DR-011).
 - Connect the Supabase GitHub integration as a deployment path (DR-024).
+- Let Railway build or deploy `main` automatically before stage 3 is complete: merging to `main` must never put the Stage 2 frontend in front of the Stage 1 database.
 
-### Owner decisions still open
+### Owner decisions (decided 2026-10-02, release-branch preparation)
 
-These are product and operating choices, not technical blockers. None is decided here.
+Recorded as the owner decided them; none of them authorizes a deployment stage.
 
-1. **Static hosting provider.** None is chosen (DR-004 assumptions).
-2. **Release branch.** Whether and when `claude/phase1-schema` merges to `main`, and which branch the host builds.
-3. **The About placeholder.** "About" is in the global navigation and shows "This screen is not built yet." Either build a minimal About page or remove the link for the public demo.
-4. **The Risk register and Decision log placeholders.** Reachable only by typing `/launches/:id/risks` or `/launches/:id/decisions`; they show the same placeholder. Decide whether they stay as placeholders, become Not found, or are built. Stage 2's scope excludes them (§19, Gate sheet).
-5. **Domain.** Whether the host's default domain is enough, or a custom domain is wanted.
-6. **Availability.** The free plan pauses inactive projects (L2), which would take the demo down. Decide on the plan, monitoring, or both.
+1. **Hosting provider:** Railway, serving the static build.
+2. **Release branch:** `main`. The work reaches it through a GitHub pull request from `claude/phase1-schema`, merged with a merge commit (no squash, rebase or force-push). Railway builds `main`. The repository stays private for now.
+3. **About:** built, a static page (EVAL-087); no longer a placeholder.
+4. **Risk register and Decision log:** excluded from this release. Their routes keep the "not built" placeholder, reachable only by typing the URL; nothing links to them.
+5. **Domain:** Railway's generated `.up.railway.app` domain is acceptable for the initial release; no custom domain is needed now.
+6. **Availability:** the free plan pauses inactive projects (L2). Plan and monitoring stay an **open operational release item**, settled before stage 6; they don't block the branch transition.
 
 ### Database deployment order and dependencies
 
@@ -1080,6 +1081,7 @@ The seven security parts equal catalog check 15's embedded values. **Superseded:
 
 ### Frontend deployment (stage 4)
 
+- Host: Railway, building `main`, on its generated `.up.railway.app` domain (owner decisions 1, 2 and 5). Connecting the Railway service is part of this stage and needs its authorization.
 - Build with `npm run build`, with `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` set in the host's build environment; Vite inlines them, so a build without them shows the "not configured" error. The publishable key comes from the owner (DR-011).
 - Static hosting of `dist/` with every application route rewritten to `/index.html` (the app uses `BrowserRouter`; deep links such as `/launches/2/gates/30` must load).
 - HTTPS with HSTS, and the R-12 headers, with the CSP first sent as `Content-Security-Policy-Report-Only` (R-13). `connect-src` names the project's own `https://<project-ref>.supabase.co`, supplied at configuration time, not written into the repository. The current build needs nothing beyond R-12's policy: one same-origin script and stylesheet, no inline script or style, no websocket (checked in the release-readiness review).
