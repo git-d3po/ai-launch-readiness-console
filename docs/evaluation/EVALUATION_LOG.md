@@ -117,6 +117,7 @@ migrations (`supabase/tests/local_roles.sql` first, for the `anon` and `authenti
 | EVAL-078 | 2026-10-02, after EVAL-077 | Stage 2: full re-run after EVAL-077 | local, build | 17/17, 7/7, 24/24, 29/29, 6/6, concurrency 9/9 (x2, plus 3 earlier runs); stress 0 deadlocks; canonical_data unchanged; 11/11, typecheck, build | Reproducible from repo; stress recorded only |
 | EVAL-079 | 2026-10-02, after EVAL-078 | A1: P0001 shown verbatim, other errors generic | local | 13 new tests pass, and 6 fail with the boundary removed; end to end on a local PostgREST: P0001 verbatim, 23514/23502/22P02/42501 generic | Reproducible from repo (unit tests); end-to-end run recorded only |
 | EVAL-080 | 2026-10-02, after EVAL-079 | A9 types generated locally; A8 provenance fields | local | Types match the local catalog (65 columns, 8 relations, 6 functions); 29/29 tests; A8 end to end on a local PostgREST | Reproducible from repo (generation command, unit tests); end-to-end run recorded only |
+| EVAL-081 | 2026-10-02, after EVAL-080 | A3 and the refresh infrastructure | local, build | 34/34 tests; local browser check: badge, canonical-only chip, banner; no overflow at 390 px | Reproducible from repo (unit tests); browser check recorded only |
 
 ---
 
@@ -1565,6 +1566,18 @@ Starting commit: `da583ab0188b9e6b34de99046909cecdbb8bc03b`, clean. Specificatio
 - **Tests:** 29 of 29. The new ones check the selected columns and the mapped fields for a canonical and a sandbox launch, the overview's launch source and decision origins, and that read errors are still `DataError`s; with the two new columns removed from the selects, 2 fail. The stub client from EVAL-079 moved to `src/lib/testing.ts`, and the sandbox function calls in `errors.test.ts` now use the typed client.
 - **End to end (recorded only):** against a local PostgREST, as `anon`: the list returns the canonical launch with `sourceLaunchId` null and the sandbox with 1. A typed `sandbox_set_gate_status` call created a visitor decision, which the sandbox overview returns with origin `visitor` and decider "Sandbox visitor"; the canonical overview returns only `seed` decisions.
 - **Reproducibility:** the generation command and unit tests are reproducible from repo; the end-to-end run is recorded only.
+
+### EVAL-081: A3 and the refresh infrastructure
+- **Date:** 2026-10-02, after EVAL-080.
+- **Target:** local (Vitest; a Vite dev server against a local PostgREST on a disposable database built from the migrations, as `anon`), and build. No production call.
+- **Change:**
+  - **Refresh (I17; §19, Refetch):** `AppShell` owns a refresh counter and `refresh()`, passed through the router's outlet context and read with `useRefresh()`. It lives in `AppShell` because the reset button (A7) sits in its header, outside the routed pages, and the outlet context needs no new library. `LaunchesPage` and `LaunchOverviewPage` put the counter in their fetch effects. Nothing calls `refresh()` yet; A4 and A7 add the callers.
+  - **Loading versus refresh:** the overview shows its loading state only when the data on screen belongs to another launch (`showsLoading` in `src/lib/refresh.ts`): an initial load or a route change. A refresh of the same launch keeps the content until the new data arrives. The launches list sets its loading state only initially, so a refresh keeps its rows too.
+  - **A3:** `sourceLaunchId !== null` is the only sandbox test. The list keeps the sandbox launch and marks it with a neutral "Sandbox" `StatusChip`, preceded by a real space so its text doesn't run into the name. The title chip counts canonical launches only (`canonicalLaunches` in `src/lib/launches.ts`) and is hidden when there are none, as it was for an empty list. The sandbox overview shows the §19 banner text, informational only, above the title.
+- **Tests:** 34 of 34. New: `canonicalLaunches` (order, the seeded pair counting as one canonical launch, only-sandbox and empty input) and `showsLoading` (initial load, route change, refresh).
+- **Browser check (recorded only), at 1440 px light and 390 px dark:** the canonical row has no badge and the sandbox row reads "Halcyon Support Copilot (sandbox) Sandbox"; the title chip reads "1 not ready"; the sandbox overview shows the banner, with no link or button in it, and the canonical overview doesn't; no horizontal scroll. Keeping content during a refresh isn't browser-checked, because nothing triggers a refresh yet; the unit test covers the rule.
+- **Result:** typecheck exit 0; build succeeds.
+- **Reproducibility:** the unit tests are reproducible from repo; the browser check is recorded only.
 
 ## Not run (don't claim these)
 

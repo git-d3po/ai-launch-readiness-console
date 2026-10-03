@@ -411,7 +411,7 @@ alter default privileges for role postgres in schema public revoke all on tables
 |---|---|---|
 | A1 | Low priority; **Stage 2 prerequisite** (DR-025) | Show the error message only for SQLSTATE `P0001`; otherwise show "Could not load data (code XXXXX)". **In the repository** (EVAL-079): `src/lib/errors.ts`, see §19 **Errors** |
 | A2 | Low priority | Route ids match `/^\d{1,15}$/`; anything longer goes to Not found (N5) |
-| A3 | Stage 2 | Sandbox banner, a "Sandbox" badge in the list; the title chip counts canonical launches only |
+| A3 | Stage 2 | Sandbox banner, a "Sandbox" badge in the list; the title chip counts canonical launches only. **In the repository** (EVAL-081) |
 | A4 | Stage 2 | Canonical pages show no write controls and link to "Try this in the sandbox" |
 | A5 | Stage 2 | Visitor evidence and decisions show a "Visitor" label beside the type and the decider |
 | A6 | Stage 2 | **Rendering `source`:**<br>• visitor-origin `source` is plain text<br>• seed-origin `source` is a link only if `new URL(source).protocol === 'https:'`, with `rel="noopener noreferrer nofollow"` |
@@ -884,6 +884,7 @@ Recorded before the UI work starts. They settle what §10, the sections above, S
 - **Blank optional arguments.** The generated function types stay authoritative: `source?: string` and `waiver_rationale?: string`, with no `null`. A blank or whitespace-only source is sent by omitting `source`, so the function's argument defaults to null; that is how "blank sent as null" is met. `waiver_rationale` is likewise omitted unless the new status is Waived. The database's https rule stays authoritative.
 - **Refetch (I17).** `AppShell` owns a refresh counter and a function that increments it, passed to routed pages through the router's outlet context. Pages include the counter in their existing fetch effects. A successful evidence add or status change calls it; a reset calls it after success and after the error path above. No state-management or caching library is added.
   - **Update (2026-10-02, after the preflight for A3):** a refresh keeps what's on screen. Initial page loads and route changes may show the existing loading state. A refresh triggered by a sandbox evidence add, a status change or a sandbox reset keeps the currently rendered content while the replacement data is fetched: the refresh counter signals a refetch and never itself clears data already loaded.
+  - **Update (2026-10-02, after EVAL-081):** a failed refresh keeps the last successfully loaded content. Failures on an initial load or a route change keep the existing error behavior. How a refresh failure is shown without replacing the content is deferred to A4 and A7, which add the first refresh callers; no new toast or error UI is added before then. As of EVAL-081 the overview still replaces its content with the error panel when a same-launch refetch fails; nothing triggers a refresh yet, so that path can't occur, and A4 or A7 brings the code into line with this rule.
 
 ### Evaluation
 
@@ -908,3 +909,4 @@ Recorded before the UI work starts. They settle what §10, the sections above, S
 - **Update (2026-10-02, after EVAL-078):** A1 is in the repository and tested (EVAL-079). The two read pages use it today; the write and reset UI (A3 to A9) will call the same `userMessage`. Not deployed.
 - **Update (2026-10-02, after EVAL-079):** A8 and A9 are in the repository, not yet committed (EVAL-080). A8: the read path selects `source_launch_id` for launches and `origin` for the overview's decisions. A9: `src/lib/database.types.ts` is regenerated from a disposable local database built from the migrations. Both are validated locally, without production contact. A3 to A7 aren't built.
 - **Update (2026-10-02, after EVAL-080):** A8 and A9 are committed (`b423012`). The open A3 to A7 UI questions are settled in **UI contract resolutions** above; A3 to A7 aren't built.
+- **Update (2026-10-02, after EVAL-081):** A3 and the refresh infrastructure are in the repository, not yet committed (EVAL-081). A4 to A7 aren't built.

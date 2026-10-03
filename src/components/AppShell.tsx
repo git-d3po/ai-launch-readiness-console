@@ -1,4 +1,5 @@
-import { Link, NavLink, Outlet } from 'react-router';
+import { useCallback, useState } from 'react';
+import { Link, NavLink, Outlet, useOutletContext } from 'react-router';
 
 export const focusRing = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
 
@@ -7,7 +8,25 @@ function navLinkClass({ isActive }: { isActive: boolean }): string {
   return `rounded-md px-2 py-1 ${state} ${focusRing}`;
 }
 
+/**
+ * The refresh signal routed pages read (I17; reconciliation record section 19,
+ * Refetch). Pages put `refreshKey` in their fetch effects; a write or a reset
+ * calls `refresh()`. A refresh refetches but never clears content already shown.
+ */
+export interface RefreshContext {
+  refreshKey: number;
+  refresh: () => void;
+}
+
+/** The refresh signal for a page rendered inside AppShell. */
+export function useRefresh(): RefreshContext {
+  return useOutletContext<RefreshContext>();
+}
+
 export function AppShell() {
+  const [refreshKey, setRefreshKey] = useState(0);
+  const refresh = useCallback(() => setRefreshKey((key) => key + 1), []);
+
   return (
     <div className="flex min-h-dvh flex-col">
       <a
@@ -47,7 +66,7 @@ export function AppShell() {
       </header>
 
       <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">
-        <Outlet />
+        <Outlet context={{ refreshKey, refresh } satisfies RefreshContext} />
       </main>
 
       <footer className="border-t border-line">

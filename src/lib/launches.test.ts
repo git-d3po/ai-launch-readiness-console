@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DataError } from './errors';
-import { fetchLaunchRows, formatTargetDate, toLaunchRows } from './launches';
+import { canonicalLaunches, fetchLaunchRows, formatTargetDate, toLaunchRows } from './launches';
 import { clientAnswering } from './testing';
 
 describe('toLaunchRows', () => {
@@ -83,6 +83,40 @@ describe('provenance (A8)', () => {
     expect(error).toBeInstanceOf(DataError);
     expect((error as DataError).code).toBe('42703');
     expect((error as DataError).message).not.toContain('source_launch_id');
+  });
+});
+
+describe('canonicalLaunches (A3)', () => {
+  it('keeps only rows without a source, in order', () => {
+    const rows = [
+      { id: 1, sourceLaunchId: null },
+      { id: 2, sourceLaunchId: 1 },
+      { id: 3, sourceLaunchId: null },
+    ];
+    expect(canonicalLaunches(rows).map((r) => r.id)).toEqual([1, 3]);
+  });
+
+  it('counts the seeded pair as one canonical launch', () => {
+    const base = {
+      owner: 'AI Program Lead',
+      target_date: null,
+      gates: [{ required: true, status: 'Not started' as const, evidence: [] }],
+    };
+    const rows = toLaunchRows(
+      [
+        { ...base, id: 1, name: 'Halcyon Support Copilot', source_launch_id: null },
+        { ...base, id: 2, name: 'Halcyon Support Copilot (sandbox)', source_launch_id: 1 },
+      ],
+      [],
+    );
+    const canonical = canonicalLaunches(rows);
+    expect(canonical.map((r) => r.id)).toEqual([1]);
+    expect(canonical.filter((r) => r.readiness.status === 'Not ready')).toHaveLength(1);
+  });
+
+  it('returns nothing when there are only sandbox launches or no launches', () => {
+    expect(canonicalLaunches([{ sourceLaunchId: 4 }])).toEqual([]);
+    expect(canonicalLaunches([])).toEqual([]);
   });
 });
 

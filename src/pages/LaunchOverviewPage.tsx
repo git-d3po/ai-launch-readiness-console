@@ -1,11 +1,12 @@
-import { type ReactNode, useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router';
-import { focusRing } from '../components/AppShell';
+import { focusRing, useRefresh } from '../components/AppShell';
 import { gateTone, StatusChip } from '../components/StatusChip';
 import { Constants } from '../lib/database.types';
 import { formatTargetDate } from '../lib/launches';
 import { fetchLaunchOverview, type LaunchOverview, missingLine, type OverviewGate } from '../lib/overview';
 import { userMessage } from '../lib/errors';
+import { showsLoading } from '../lib/refresh';
 import { supabase } from '../lib/supabase';
 import { NotFound } from './NotFound';
 
@@ -22,6 +23,9 @@ export function LaunchOverviewPage() {
   const { launchId } = useParams();
   const id = launchId && /^\d+$/.test(launchId) ? Number(launchId) : null;
   const [state, setState] = useState<LoadState>({ status: 'loading' });
+  const { refreshKey } = useRefresh();
+  // The launch the data on screen belongs to; a refresh of it keeps the content.
+  const shownId = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     if (id === null) {
@@ -33,18 +37,22 @@ export function LaunchOverviewPage() {
       return;
     }
     let cancelled = false;
-    setState({ status: 'loading' });
+    if (showsLoading(shownId.current, id)) setState({ status: 'loading' });
     fetchLaunchOverview(supabase, id)
       .then((overview) => {
-        if (!cancelled) setState(overview ? { status: 'success', overview } : { status: 'not-found' });
+        if (cancelled) return;
+        shownId.current = id;
+        setState(overview ? { status: 'success', overview } : { status: 'not-found' });
       })
       .catch((error: unknown) => {
-        if (!cancelled) setState({ status: 'error', message: userMessage(error, 'Could not load data') });
+        if (cancelled) return;
+        shownId.current = id;
+        setState({ status: 'error', message: userMessage(error, 'Could not load data') });
       });
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, refreshKey]);
 
   if (state.status === 'not-found') return <NotFound />;
   if (state.status === 'loading') return <Panel role="status">Loading launch…</Panel>;
@@ -68,6 +76,13 @@ function Overview({ overview }: { overview: LaunchOverview }) {
 
   return (
     <>
+      {launch.sourceLaunchId !== null && (
+        // Informational only (A3): no link or action inside.
+        <p className="mb-4 rounded-md border border-line bg-card px-3 py-2">
+          Sandbox: a shared copy of the canonical launch that anyone can change. Changes stay here, and the canonical
+          launch is never changed.
+        </p>
+      )}
       <header>
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-[15px] font-semibold tracking-tight break-words">{launch.name}</h1>

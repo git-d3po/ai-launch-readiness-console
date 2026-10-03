@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
-import { focusRing } from '../components/AppShell';
+import { focusRing, useRefresh } from '../components/AppShell';
 import { StatusChip } from '../components/StatusChip';
-import { fetchLaunchRows, formatTargetDate, type LaunchRow } from '../lib/launches';
+import { canonicalLaunches, fetchLaunchRows, formatTargetDate, type LaunchRow } from '../lib/launches';
 import { userMessage } from '../lib/errors';
 import { supabase } from '../lib/supabase';
 
@@ -15,6 +15,7 @@ const notConfigured =
   'The Supabase client is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY.';
 
 export function LaunchesPage() {
+  const { refreshKey } = useRefresh();
   const [state, setState] = useState<LoadState>(() =>
     supabase ? { status: 'loading' } : { status: 'error', message: notConfigured },
   );
@@ -30,16 +31,18 @@ export function LaunchesPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [refreshKey]);
 
   const rows = state.status === 'success' ? state.rows : [];
-  const notReady = rows.filter((row) => row.readiness.status === 'Not ready').length;
+  // The title chip counts canonical launches only (A3).
+  const canonical = canonicalLaunches(rows);
+  const notReady = canonical.filter((row) => row.readiness.status === 'Not ready').length;
 
   return (
     <>
       <div className="flex flex-wrap items-center gap-2">
         <h1 className="text-[15px] font-semibold tracking-tight">Launches</h1>
-        {rows.length > 0 &&
+        {canonical.length > 0 &&
           (notReady > 0 ? (
             <StatusChip tone="danger">{notReady} not ready</StatusChip>
           ) : (
@@ -97,6 +100,14 @@ function LaunchesTable({ rows }: { rows: LaunchRow[] }) {
                 >
                   {row.name}
                 </Link>
+                {row.sourceLaunchId !== null && (
+                  <>
+                    {' '}
+                    <span className="ml-1">
+                      <StatusChip tone="neutral">Sandbox</StatusChip>
+                    </span>
+                  </>
+                )}
               </th>
               <td className={td}>{row.owner}</td>
               <td className={`${td} ${row.targetDate === null ? 'text-muted' : ''}`}>{formatTargetDate(row.targetDate)}</td>

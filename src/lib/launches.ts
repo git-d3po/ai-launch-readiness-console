@@ -59,6 +59,11 @@ export function toLaunchRows(launches: readonly LaunchWithGates[], stages: reado
   });
 }
 
+/** Canonical launches only: a sandbox launch has a source (A3, A8). */
+export function canonicalLaunches<R extends Pick<LaunchRow, 'sourceLaunchId'>>(rows: readonly R[]): R[] {
+  return rows.filter((row) => row.sourceLaunchId === null);
+}
+
 /** Formats a Postgres date (YYYY-MM-DD) without shifting it across time zones. */
 export function formatTargetDate(date: string | null): string {
   if (date === null) return 'Target unset';
