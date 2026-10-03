@@ -104,12 +104,18 @@ export function GateSheet() {
 
   return (
     <>
-      <div aria-hidden="true" className="fixed inset-0 z-10 hidden bg-black/40 sm:block" onClick={() => navigate(overviewPath)} />
+      {/* The sheet and its backdrop start below the sticky header, which stays usable for the
+          global reset (A7). The overview behind is inert; the header isn't, so the sheet is not
+          aria-modal. */}
+      <div
+        aria-hidden="true"
+        className="fixed inset-x-0 top-(--header-height,0px) bottom-0 z-10 hidden bg-black/40 sm:block"
+        onClick={() => navigate(overviewPath)}
+      />
       <section
         role="dialog"
-        aria-modal="true"
         aria-labelledby="gate-sheet-title"
-        className="fixed inset-0 z-20 flex flex-col overflow-y-auto bg-page sm:left-auto sm:w-full sm:max-w-xl sm:border-l sm:border-line sm:shadow-xl"
+        className="fixed inset-x-0 top-(--header-height,0px) bottom-0 z-20 flex flex-col overflow-y-auto bg-page sm:left-auto sm:w-full sm:max-w-xl sm:border-l sm:border-line sm:shadow-xl"
       >
         <div className="flex items-start gap-3 border-b border-line px-4 py-3">
           <h2

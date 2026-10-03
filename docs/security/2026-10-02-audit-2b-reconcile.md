@@ -415,7 +415,7 @@ alter default privileges for role postgres in schema public revoke all on tables
 | A4 | Stage 2 | Canonical pages show no write controls and link to "Try this in the sandbox". **In the repository** (EVAL-083) |
 | A5 | Stage 2 | Visitor evidence and decisions show a "Visitor" label beside the type and the decider. **In the repository** (EVAL-084) |
 | A6 | Stage 2 | **Rendering `source`:**<br>• visitor-origin `source` is plain text<br>• seed-origin `source` is a link only if `new URL(source).protocol === 'https:'`, with `rel="noopener noreferrer nofollow"` |
-| A7 | Stage 2 | The header button becomes "Reset sandbox", calls `sandbox_reset` behind a confirmation, and shows the cooldown message |
+| A7 | Stage 2 | The header button becomes "Reset sandbox", calls `sandbox_reset` behind a confirmation, and shows the cooldown message. **In the repository** (EVAL-085, EVAL-086) |
 | A8 | Stage 2 | Queries select `origin` and `source_launch_id`. **In the repository** (EVAL-080): launches and the overview select `source_launch_id`; the overview's decisions select `origin` |
 | A9 | Stage 2 | Regenerate `src/lib/database.types.ts` after the migrations. **In the repository** (EVAL-080): generated from a local database built from the migrations, not from live |
 
@@ -512,7 +512,7 @@ inside a rolled-back transaction.
 
 | Gate | Condition | Status |
 |---|---|---|
-| R-11 | A3 to A7 shipped | Not started |
+| R-11 | A3 to A7 shipped | Built in the repository and verified locally (EVAL-081 to EVAL-086); **not shipped**: nothing is hosted, and M-4 to M-6 aren't applied to live |
 | R-12 | **Production headers set:**<br>• CSP `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src https://<project>.supabase.co; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'`<br>• `X-Content-Type-Options: nosniff`<br>• `Referrer-Policy: strict-origin-when-cross-origin`<br>• `Permissions-Policy: camera=(), microphone=(), geolocation=()`<br>• HTTPS with HSTS | Not started (nothing hosted) |
 | R-13 | One clean Report-Only CSP pass before the header is enforced | Not started |
 
@@ -871,12 +871,14 @@ All three are SECURITY DEFINER, owned by `postgres`, with `search_path = ''`, no
 - **Success:** "Sandbox reset", then a refetch. The client may disable the button for 5 minutes as a convenience; the database is authoritative.
 - **Cooldown, or a concurrent reset that lost the race:** the P0001 message, verbatim.
 - **Any other error:** "Could not reset the sandbox (code XXXXX)", then a refetch.
+- **Update (2026-10-02, after EVAL-085; revised A7 rule):** a P0001 rejection also triggers one refetch, because the sandbox is shared: the rejection may mean another visitor's reset just ran, and the page would otherwise show pre-reset data. The message stays verbatim and authoritative, no success is shown, and the client doesn't read the message text to tell the cases apart (EVAL-086).
 
 ### UI contract resolutions (A3 to A7; 2026-10-02, after EVAL-080)
 
 Recorded before the UI work starts. They settle what §10, the sections above, Scenario F and DR-013 to DR-018 leave open; nothing above is changed.
 
 - **Gate sheet (Stage 2 scope).** Stage 2 builds the gate detail side sheet at `/launches/:launchId/gates/:gateId`, over the launch overview: deep-linkable, closed by Back, full-screen on mobile (the brief's route contract). It shows the gate's criteria, owner and status, and its evidence list with each item's type, title, summary, date and source, with the A5 label and A6 rendering. On a sandbox gate it holds the A4 forms; on a canonical gate it is read-only and carries the sandbox link. The decision log and risk register are not part of Stage 2.
+  - **Update (2026-10-02, after EVAL-085; A7):** the sheet now opens below the sticky header rather than over it, full width below the header on phones, so the global "Reset sandbox" stays usable while it is open; it is no longer `aria-modal` (**A7 as built** below).
 - **Navigation.** Canonical pages (the overview and canonical gate sheets) link to the sandbox **launch** with the text "Try this in the sandbox". There is no gate-level link, so the UI doesn't use `source_gate_id`; the sandbox launch is found through `source_launch_id`. No schema change.
 - **Sandbox banner.** Informational only, with no link or action inside it, on the sandbox overview and sandbox gate sheets. No earlier document gives its text. Wording: "Sandbox: a shared copy of the canonical launch that anyone can change. Changes stay here, and the canonical launch is never changed." Navigation into the sandbox is the separate "Try this in the sandbox" link.
 - **Reset sandbox.** The single global header action, in `AppShell`, available on every page, behind the confirmation dialog in **Reset UX (A7)**. There are no page-specific reset buttons. The database decides the cooldown and concurrent resets; a client-side 5-minute disable is a convenience only, never the authority.
@@ -892,13 +894,21 @@ Recorded before the UI work starts. They settle what §10, the sections above, S
   - **Sandbox link:** the overview finds the sandbox copy by `source_launch_id`; canonical overviews and canonical gate sheets link to that launch.
   - **Refresh failures:** the overview and the sheet keep their last good content and show a red alert above it ("Could not refresh this launch." or "…this gate.", with "Could not load data (code X)"). Nothing new was added for this; it is the existing alert style.
   - **Copy this section left open:** the 20-decision cap message follows the evidence cap's wording: "This gate has reached its 20 visitor decisions. Reset the sandbox to start again." The evidence form shows "Recorded by: Visitor · Date: today, set by the database", the fixed values this section says are shown, never entered; this is the form, not A5's labels on listed items.
-  - **Not built:** A5's "Visitor" labels on listed evidence and decisions, and A7's reset. (A5 has since been built; see **A5 as built**.)
+  - **Not built:** A5's "Visitor" labels on listed evidence and decisions, and A7's reset. (Both have since been built; see **A5 as built** and **A7 as built**.)
 - **A5 as built (2026-10-02, after EVAL-083; EVAL-084).**
   - **Rule:** `provenanceLabel` (`src/lib/provenance.ts`) returns "Visitor" for a row whose `origin` is `visitor` and nothing for `seed`. It reads `origin` only, never the launch, the decider (`decided_by`), the source, dates or ids, so seed rows copied into the sandbox stay unlabeled. Both lists already received `origin` (A8 and A4); no query changed.
   - **Evidence:** in the gate sheet's evidence list, the label sits in each item's metadata row, right after the type and before the date.
   - **Decisions:** in the overview's Latest decisions, the label sits right after the decider, which is shown unchanged.
   - **Presentation:** `ProvenanceLabel` renders the neutral chip the A3 "Sandbox" badge uses (stone tokens, no status color, DR-012). The word itself carries the meaning, not the color.
   - **Unchanged:** the gate sheet still has no decision log; the evidence form's "Recorded by: Visitor · Date: today, set by the database" line, A6 source rendering, the forms, refresh, caps, routing and the reset placeholder are as A4 left them.
+- **A7 as built (2026-10-02, after EVAL-084; EVAL-085).**
+  - **Placement:** `ResetSandbox` (`src/components/ResetSandbox.tsx`) replaces the disabled "Reset demo data" placeholder in `AppShell`'s header. It is the only reset control; no page has its own.
+  - **Confirmation:** a native modal `<dialog>` with the approved text. Focus starts on Cancel; Enter there, Escape or Cancel closes it and sends nothing. Escape inside it never reaches the page, so it doesn't close an open gate sheet. Only the dialog's own "Reset sandbox" button sends the call. While the call is in flight both buttons are disabled, the dialog says "Resetting…", and Escape is ignored, so the call can't be sent twice. The result stays in the dialog until Close, and focus then returns to the header button.
+  - **Call:** `src/lib/reset.ts` calls `sandbox_reset()` with no arguments, matching the generated type (`Args: Record<PropertyKey, never>`), through the same client and A1 boundary as the other writes. No table is written and no other function is called.
+  - **Outcomes:** success shows "Sandbox reset". A P0001 rejection shows "The sandbox was not reset." with the database message verbatim; the client never reads the text, so the cooldown and a concurrent reset that won the race are handled alike. Any other error shows "Could not reset the sandbox (code X)" through `userMessage`, without a "not reset" claim because the outcome is unknown.
+  - **Cooldown:** the client keeps no timer, so nothing local can suggest a reset is allowed; the button is always enabled and the database answers.
+  - **Refresh:** every outcome calls `AppShell`'s `refresh()` once: success, a P0001 rejection, and any other failure. After a rejection the refresh only reconciles shared state, since another visitor's reset may have run; the dialog still reports the rejection, never success. The launch list, the overview and the gate sheet refetch and keep what they show; a refresh that fails keeps the last good content beside a red alert, which a later successful refresh clears. A reset that succeeded with a failed refresh shows "Sandbox reset" in the dialog and "Could not refresh …" on the page, so the two aren't confused. The launch list gained this behavior in A7 (`launchesLoaded` and `launchesFailed` in `src/lib/launches.ts`, on `keepsContentOnFailure`); a failed initial load still shows the full error.
+  - **With a gate sheet open:** the header is sticky (`z-30`), and `AppShell` publishes its measured height as `--header-height`. The sheet and its backdrop start at that height instead of covering the whole viewport, so "Reset sandbox" stays visible and clickable while a sheet is open, at any scroll position and on phones, where the sheet fills the screen below the header. The backdrop still closes the sheet; the overview behind stays `inert`. Because the header stays usable, the sheet is no longer `aria-modal` (it keeps `role="dialog"`); `aria-modal` would have hidden the header from screen readers. The skip link gained `focus:z-40` so the sticky header can't cover it.
 
 ### Evaluation
 
@@ -929,3 +939,4 @@ Recorded before the UI work starts. They settle what §10, the sections above, S
 - **Update (2026-10-02, after EVAL-083):** A4 is in the repository: the gate sheet, the canonical sandbox link, and the evidence and status forms (EVAL-083; **A4 as built** above). A5 and A7 aren't built.
 - **Update (2026-10-02, after EVAL-084):** A5 is in the repository: the "Visitor" label on listed evidence and decisions, decided by `origin` alone (EVAL-084; **A5 as built** above). A7 isn't built.
 - **Environment compatibility (2026-10-02, after EVAL-084):** Since `b423012`, the application's Stage 2 reads, and A4's writes, require M-4 to M-6. The application must not be hosted against the connected Stage 1 schema until those migrations are applied through the authorized deployment path. This is a documentation note only; no migration was applied.
+- **Update (2026-10-02, after EVAL-086):** A7 is in the repository: the header "Reset sandbox" behind a confirmation, calling only `sandbox_reset()` and refreshing after every outcome, usable while a gate sheet is open, and the launch list's last-good-content refresh (EVAL-085, EVAL-086; **A7 as built** above). A1 and A3 to A9 are now in the repository and verified locally. Nothing is applied to live or hosted; the environment note above still holds.

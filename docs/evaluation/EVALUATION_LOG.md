@@ -121,6 +121,8 @@ migrations (`supabase/tests/local_roles.sql` first, for the `anon` and `authenti
 | EVAL-082 | 2026-10-02, after EVAL-081 | A6: source rendering rule | local, build | 6 new tests, 40/40 in total; both security mutants caught | Reproducible from repo |
 | EVAL-083 | 2026-10-02, after EVAL-082 | A4: gate sheet, sandbox link, evidence and status forms | local, build | 60/60 tests; 29/29 local browser checks | Reproducible from repo (unit tests); browser walkthrough recorded only |
 | EVAL-084 | 2026-10-02, after EVAL-083 | A5: "Visitor" label on listed evidence and decisions | local, build | 5 new tests, 65/65 in total; 24/24 local browser checks | Reproducible from repo (unit tests); browser walkthrough recorded only |
+| EVAL-085 | 2026-10-02, after EVAL-084 | A7: header sandbox reset; launch list keeps content on a failed refresh | local, build | 14 new tests, 79/79 in total; 41/41 local browser checks | Reproducible from repo (unit tests); browser walkthrough recorded only |
+| EVAL-086 | 2026-10-02, after EVAL-085 | A7 follow-up: reset usable with a gate sheet open; a P0001 rejection refreshes; focus kept below the sticky header | local, build | 80/80 tests; 56/56 local browser checks; 14/14 keyboard-focus checks | Reproducible from repo (unit tests); browser walkthrough recorded only |
 
 ---
 
@@ -1619,6 +1621,46 @@ Starting commit: `da583ab0188b9e6b34de99046909cecdbb8bc03b`, clean. Specificatio
 - **Result:** typecheck exit 0; build succeeds.
 - **Reproducibility:** the unit tests are reproducible from repo; the browser walkthrough is recorded only.
 
+### EVAL-085: A7, the header sandbox reset, and the launch list's refresh rule
+- **Date:** 2026-10-02, after EVAL-084.
+- **Target:** local (Vitest; a Vite dev server against a local PostgREST on a disposable database built from the migrations, as `anon`, through a scratch proxy that can fail reads, fail or slow the reset call, and log requests) and build. No production call, and no change under `supabase/`, to packages or to configuration.
+- **Change:** `src/lib/reset.ts` (`resetSandbox`, which calls `sandbox_reset()` with no arguments; `runReset`, which maps the result to done, rejected or failed); `src/components/ResetSandbox.tsx` (the header button and confirmation dialog) replacing the placeholder in `AppShell`; `launchesLoaded` and `launchesFailed` in `src/lib/launches.ts`, used by `LaunchesPage` to keep its rows on a failed refresh.
+- **Tests:** 14 new, 79 of 79 in total. `src/lib/reset.test.ts`: the call is one POST to `/rpc/sandbox_reset` with an empty body; P0001 kept verbatim, without a refresh; another error shown as "Could not reset the sandbox (code 42501)" with no raw text, and with a refresh; an error without a usable code as the generic text alone; the approved confirmation text; and a scan of the application source showing it calls only the three sandbox functions and writes no table. `src/lib/launches.test.ts`: a failed refresh keeps the rows with the error beside them; a later success clears it; a failed initial load shows the error; a refresh after a failed initial load stays an error. Cancel can't be unit-tested without a component harness, which wasn't added; the walkthrough covers it.
+- **Browser walkthrough (recorded only), 41 of 41.** On a fresh local database. The cooldown row was aged between steps so the real `sandbox_reset()` could run again; no function was changed. The first runs failed on script errors (a status select's "Waived" option matched as text, a wrong seed count, an uncleared request log, and two reads taken too early); each was fixed in the script and rerun on a rebuilt database, and a separate probe confirmed that one reset makes the open sheet send its own three queries and the overview its eight.
+  - **Control:** the header shows an enabled "Reset sandbox"; "Reset demo data" and any reset control in a page are gone.
+  - **Confirmation:** the approved text; focus on Cancel; Enter on Cancel, Escape and Cancel each close the dialog and sent no request at all; focus returns to the header button; Escape in the dialog leaves an open gate sheet open.
+  - **Reset:** with 10 visitor evidence items (the cap), a waiver and a visitor decision on the sandbox, one confirmed reset sent exactly one write, `POST /rpc/sandbox_reset`, and showed "Sandbox reset". The sheet then showed no visitor evidence and no "Visitor" labels, the status chip back to "Not started", and the evidence form again; the database had 0 visitor evidence, 0 visitor decisions, its 10 seed evidence rows, and every sandbox gate equal to its source. Canonical rows hashed the same before and after.
+  - **Cooldown and races:** a second reset showed "The sandbox was not reset." and "The sandbox was reset recently. Try again in 5 minutes." verbatim, and sent no refetch. Two concurrent calls: one returned 204 and the other the cooldown P0001.
+  - **Pending:** with the call slowed, both buttons were disabled, Escape kept the dialog, and only one call was sent.
+  - **Generic failure:** a simulated 500 (`XX000`, with a message, detail and hint) showed only "Could not reset the sandbox (code XX000)", without a "not reset" claim, and refetched.
+  - **Launch list:** a reset that succeeded while reads failed showed "Sandbox reset" in the dialog, and the list kept both rows beside "Could not refresh launches." with "Could not load data (code XX000)", with no loading state. A later reset with reads working cleared the alert. A failed initial load still shows "Could not load launches." with no table.
+  - **Other routes:** close, reset and reopen on a capped gate gave the form back; on the sandbox overview the blocking count went from 9 to 10 after a visitor's Passed was undone, with no visitor decisions left; on the canonical overview and a canonical gate sheet the reset refetched, and the content and read-only state were identical.
+  - **Gate sheet open:** the sheet's backdrop (A4) covers the header button, so with a sheet open it was reached by keyboard.
+- **Superseded in part (EVAL-086):** this run tested the first A7 build, where a P0001 rejection didn't refresh and the gate sheet covered the header. Both were changed before the commit; EVAL-086 tests the final behavior.
+  - **Presentation:** at 390 px the dialog fits with a 16 px margin and the page doesn't scroll sideways. Dialog text contrast is 16.74:1 in light mode and 16.03:1 in dark mode.
+- **Result:** typecheck exit 0; build succeeds.
+- **Reproducibility:** the unit tests are reproducible from repo; the browser walkthrough is recorded only.
+
+### EVAL-086: A7 follow-up, reset usable with a gate sheet open, and a P0001 rejection refreshes
+- **Date:** 2026-10-02, after EVAL-085.
+- **Target:** as EVAL-085: local Vitest, a Vite dev server against a local PostgREST on a disposable database through the scratch proxy, and build. No production call, and no change under `supabase/`, to packages or to configuration.
+- **Why:** EVAL-085 found that the gate sheet's backdrop covered the header, so the global reset couldn't be clicked from the sheet that tells the visitor to reset; and a P0001 rejection didn't refresh, which could leave pre-reset data on screen after another visitor's reset won.
+- **Change:** the header is sticky (`z-30`) and `AppShell` publishes its measured height as `--header-height`; the gate sheet and its backdrop start there instead of at the top, and the sheet drops `aria-modal` (the overview stays `inert`). The skip link gained `focus:z-40`. `runReset` now asks for a refresh after a P0001 rejection too.
+- **Tests:** 80 of 80. `src/lib/reset.test.ts` now checks that a P0001 rejection is shown verbatim, isn't success, sends only `sandbox_reset`, and asks for a refresh; and that P0001 messages are treated alike whatever their text, including one that reads "Sandbox reset".
+- **Browser walkthrough (recorded only), 56 of 56.** The EVAL-085 walkthrough, now with the pointer everywhere, plus new checks, on a fresh database. Two runs stopped on script errors (an escaped regular expression, and a dialog closed before a contrast reading) and one failed on a script ordering error (a step that needed the cooldown aged); each was fixed and rerun on a rebuilt database.
+  - **Gate sheet open:** "Reset sandbox" is the topmost element at its position and opens the dialog by click; the sheet starts exactly at the header's bottom edge (50.5 px), the overview is inert, and the sheet has no `aria-modal`. Cancel, confirm, the 10-item cap, waiver and decision reset, canonical hash and seed evidence results are as in EVAL-085.
+  - **P0001:** the cooldown message is shown verbatim, without "Sandbox reset", and the sheet and the overview each refetched exactly once (one `GET /evidence`, one `GET /risks`).
+  - **Stale state:** with a visitor item on screen, another visitor's reset ran (204); this visitor's reset was refused with the cooldown message, and the refresh removed the stale item. With reads failing, a refused reset showed the rejection in the dialog, and the sheet kept its content beside "Could not refresh this gate."
+  - **Sheet behavior:** the heading is focused on open; clicking the backdrop and pressing Escape still close the sheet; opened from an overview scrolled 328 px, the header is on screen at the top and the sheet starts below it; the skip link is visible on top when focused.
+  - **Phones (390 px):** the sheet is full width below the 82 px header with no horizontal scroll; a tap on "Reset sandbox" opens the dialog with the sheet open, and the sheet's Close stays tappable.
+  - **Unchanged from EVAL-085:** the launch list's refresh rule, the generic failure, pending state, the concurrent race, the other routes, and dialog contrast (16.74:1 light, 16.03:1 dark).
+- **Sticky-header focus fix (after the final A7 audit):** the audit found that the sticky header could cover keyboard focus: pressing Shift+Tab up the sandbox overview left 5 focused controls at 1440 px and 7 at 390 px partly or fully under it, several fully hidden. `src/index.css` now sets `html { scroll-padding-top: var(--header-height, 0px); }`, reusing the height `AppShell` measures, so the browser stops focus scrolling and in-page jumps below the header.
+  - **Keyboard focus, 14 of 14 checks:** Tab forward and Shift+Tab back through every control on the sandbox overview (52 and 53 focus stops). Worst overlap with the header: 0 px at 1440 px (light), and 0.5 px of a 20 px link at 390 px (dark), a sub-pixel boundary that leaves it visible. The skip link itself is excluded from the measure, since it is drawn above the header when focused.
+  - **Skip link:** from a page scrolled 400 px, it is visible on top when focused, and Enter goes to `#main` with the page heading below the header (128 px at 1440, 198.5 px at 390).
+  - **Regressions:** no horizontal scroll; the sheet still starts exactly at the header's bottom edge; with the sheet open, "Reset sandbox" opens and cancels and the sheet's Close works, at both widths. The 56-check walkthrough was rerun with the fix and passed 56 of 56. The first focus run flagged only the skip link, which the probe wrongly measured; the probe was corrected and rerun on a rebuilt database.
+- **Result:** typecheck exit 0; build succeeds.
+- **Reproducibility:** the unit tests are reproducible from repo; the browser walkthrough is recorded only.
+
 ## Not run (don't claim these)
 
 This list reflects the state after the deployment-path decision (about 14:25).
@@ -1627,6 +1669,8 @@ This list reflects the state after the deployment-path decision (about 14:25).
 - The app in a browser against live.
 
 **Update (Stage 2, 17:11; re-verified after the Stage 2 review, EVAL-075 to EVAL-078):** Stage 2 (M-4 to M-6) is implemented and verified **locally only** (EVAL-069 to EVAL-078). Not run: any Stage 2 migration on live, any Stage 2 check on live, a committed end-to-end suite, and the Stage 2 UI, which isn't built.
+
+**Update (after EVAL-086):** the Stage 2 UI (A1, A3 to A9) is built and verified locally against disposable databases (EVAL-079 to EVAL-086). Still not run: the Stage 2 UI against live or hosted anywhere, any Stage 2 migration or check on live, and a committed end-to-end suite.
 
 - **Production deployment of Stage 1 (as of 14:25; superseded, see the update above):** the migration was **not** applied to live, so live hasn't been verified after it. The deployment path is designated (DR-024), and the deployment is a separate, authorized run. On live, the catalog test passing 17 of 17, the fingerprint matching EVAL-045, and the 0028/0029 advisor lints clearing are expected but **unverified**.
 - **GitHub integration settings:** not applicable. No GitHub integration has ever been connected (EVAL-060). The earlier entry here assumed one might exist.

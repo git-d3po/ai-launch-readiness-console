@@ -46,6 +46,11 @@
 }
 
 @layer base {
+  /* Focus and in-page jumps stop below the sticky header (A7), whose height AppShell measures. */
+  html {
+    scroll-padding-top: var(--header-height, 0px);
+  }
+
   body {
     @apply bg-page text-[13px] text-fg tabular-nums antialiased;
   }

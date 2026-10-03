@@ -1,6 +1,7 @@
 import { computeReadiness, type Readiness, type ReadinessGate } from '../domain/readiness';
 import type { Database } from './database.types';
 import { toDataError } from './errors';
+import { keepsContentOnFailure } from './refresh';
 import type { Client } from './supabase';
 
 type Enums = Database['public']['Enums'];
@@ -78,4 +79,26 @@ export function formatCalendarDate(date: string): string {
     day: 'numeric',
     timeZone: 'UTC',
   });
+}
+
+/** The launch list's state; `refreshError` is set when a refresh failed and the last good rows stayed on screen. */
+export type LaunchesState =
+  | { status: 'loading' }
+  | { status: 'error'; message: string }
+  | { status: 'success'; rows: LaunchRow[]; refreshError: string | null };
+
+/** After a successful fetch: the new rows, with any earlier refresh error cleared. */
+export function launchesLoaded(rows: LaunchRow[]): LaunchesState {
+  return { status: 'success', rows, refreshError: null };
+}
+
+/**
+ * After a failed fetch (A7; section 19, Refetch): a refresh of a list already
+ * shown keeps it and reports the failure beside it; a failed initial load
+ * shows the error instead.
+ */
+export function launchesFailed(prev: LaunchesState, isRefresh: boolean, message: string): LaunchesState {
+  return keepsContentOnFailure(isRefresh, prev.status === 'success') && prev.status === 'success'
+    ? { ...prev, refreshError: message }
+    : { status: 'error', message };
 }

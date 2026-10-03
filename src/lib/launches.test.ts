@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { DataError } from './errors';
-import { canonicalLaunches, fetchLaunchRows, formatTargetDate, toLaunchRows } from './launches';
+import {
+  canonicalLaunches,
+  fetchLaunchRows,
+  formatTargetDate,
+  type LaunchesState,
+  launchesFailed,
+  launchesLoaded,
+  type LaunchRow,
+  toLaunchRows,
+} from './launches';
 import { clientAnswering } from './testing';
 
 describe('toLaunchRows', () => {
@@ -127,5 +136,50 @@ describe('formatTargetDate', () => {
 
   it('keeps the calendar date regardless of time zone', () => {
     expect(formatTargetDate('2026-11-30')).toBe('Nov 30, 2026');
+  });
+});
+
+describe('launch list refresh (A7)', () => {
+  const rows = (name: string): LaunchRow[] => [
+    {
+      id: 1,
+      name,
+      owner: 'AI Program Lead',
+      targetDate: null,
+      sourceLaunchId: null,
+      currentStage: null,
+      readiness: { status: 'Ready', label: '0 of 0 required gates resolved', blocking: [], resolved: 0, required: 0 },
+    } as unknown as LaunchRow,
+  ];
+
+  it('keeps the last good rows when a refresh fails, with the failure beside them', () => {
+    const shown = launchesLoaded(rows('Before'));
+    expect(launchesFailed(shown, true, 'Could not load data (code XX000)')).toEqual({
+      status: 'success',
+      rows: rows('Before'),
+      refreshError: 'Could not load data (code XX000)',
+    });
+  });
+
+  it('clears the refresh error on a later successful refresh', () => {
+    const failed = launchesFailed(launchesLoaded(rows('Before')), true, 'Could not load data (code XX000)');
+    expect(failed.status === 'success' && failed.refreshError).toBe('Could not load data (code XX000)');
+    expect(launchesLoaded(rows('After'))).toEqual({ status: 'success', rows: rows('After'), refreshError: null });
+  });
+
+  it('shows the error when the initial load fails', () => {
+    const loading: LaunchesState = { status: 'loading' };
+    expect(launchesFailed(loading, false, 'Could not load data (code PGRST301)')).toEqual({
+      status: 'error',
+      message: 'Could not load data (code PGRST301)',
+    });
+  });
+
+  it('keeps showing the error when a refresh follows a failed initial load', () => {
+    const error: LaunchesState = { status: 'error', message: 'Could not load data (code 42501)' };
+    expect(launchesFailed(error, true, 'Could not load data (code XX000)')).toEqual({
+      status: 'error',
+      message: 'Could not load data (code XX000)',
+    });
   });
 });

@@ -1,5 +1,6 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useOutletContext } from 'react-router';
+import { ResetSandbox } from './ResetSandbox';
 
 export const focusRing = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
 
@@ -26,17 +27,31 @@ export function useRefresh(): RefreshContext {
 export function AppShell() {
   const [refreshKey, setRefreshKey] = useState(0);
   const refresh = useCallback(() => setRefreshKey((key) => key + 1), []);
+  const header = useRef<HTMLElement>(null);
+
+  // The header's height as --header-height, so the gate sheet opens below it and
+  // the global "Reset sandbox" stays usable while a sheet is open (A7).
+  useLayoutEffect(() => {
+    const el = header.current;
+    if (!el) return;
+    const set = () => document.documentElement.style.setProperty('--header-height', `${el.getBoundingClientRect().height}px`);
+    set();
+    const observer = new ResizeObserver(set);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <div className="flex min-h-dvh flex-col">
       <a
         href="#main"
-        className={`sr-only rounded-md bg-card px-3 py-2 focus:not-sr-only focus:absolute focus:top-2 focus:left-2 ${focusRing}`}
+        className={`sr-only rounded-md bg-card px-3 py-2 focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-40 ${focusRing}`}
       >
         Skip to content
       </a>
 
-      <header className="border-b border-line">
+      {/* Sticky, so it stays above an open gate sheet however far the page is scrolled. */}
+      <header ref={header} className="sticky top-0 z-30 border-b border-line bg-page">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-1 px-4 py-2.5">
           <Link to="/launches" className={`rounded-md font-semibold tracking-tight ${focusRing}`}>
             AI Launch Readiness Console
@@ -52,16 +67,8 @@ export function AppShell() {
             </NavLink>
           </nav>
 
-          {/* Placeholder until the Stage 2 sandbox reset (confirmation dialog + sandbox_reset, DR-014) is built.
-              reset_demo_data() is owner-only since Stage 1. */}
-          <button
-            type="button"
-            disabled
-            title="Not available yet"
-            className="ml-auto cursor-not-allowed rounded-md border border-line px-2.5 py-1 text-muted opacity-60"
-          >
-            Reset demo data
-          </button>
+          {/* The single global sandbox reset (A7, DR-014); reset_demo_data() stays owner-only. */}
+          <ResetSandbox onRefresh={refresh} />
         </div>
       </header>
 

@@ -1,32 +1,46 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { focusRing, useRefresh } from '../components/AppShell';
 import { StatusChip } from '../components/StatusChip';
-import { canonicalLaunches, fetchLaunchRows, formatTargetDate, type LaunchRow } from '../lib/launches';
+import {
+  canonicalLaunches,
+  fetchLaunchRows,
+  formatTargetDate,
+  launchesFailed,
+  launchesLoaded,
+  type LaunchesState,
+  type LaunchRow,
+} from '../lib/launches';
 import { userMessage } from '../lib/errors';
+import { showsLoading } from '../lib/refresh';
 import { supabase } from '../lib/supabase';
-
-type LoadState =
-  | { status: 'loading' }
-  | { status: 'error'; message: string }
-  | { status: 'success'; rows: LaunchRow[] };
 
 const notConfigured =
   'The Supabase client is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY.';
 
 export function LaunchesPage() {
   const { refreshKey } = useRefresh();
-  const [state, setState] = useState<LoadState>(() =>
+  const [state, setState] = useState<LaunchesState>(() =>
     supabase ? { status: 'loading' } : { status: 'error', message: notConfigured },
   );
+  // Whether the list on screen came from a fetch; a later fetch is then a refresh and keeps it (A7).
+  const shown = useRef<'list' | undefined>(undefined);
 
   useEffect(() => {
     if (!supabase) return;
     let cancelled = false;
+    const isRefresh = !showsLoading(shown.current, 'list');
     fetchLaunchRows(supabase)
-      .then((rows) => !cancelled && setState({ status: 'success', rows }))
+      .then((rows) => {
+        if (cancelled) return;
+        shown.current = 'list';
+        setState(launchesLoaded(rows));
+      })
       .catch((error: unknown) => {
-        if (!cancelled) setState({ status: 'error', message: userMessage(error, 'Could not load data') });
+        if (cancelled) return;
+        shown.current = 'list';
+        const message = userMessage(error, 'Could not load data');
+        setState((prev) => launchesFailed(prev, isRefresh, message));
       });
     return () => {
       cancelled = true;
@@ -50,6 +64,15 @@ export function LaunchesPage() {
           ))}
       </div>
       <div className="mt-4">
+        {state.status === 'success' && state.refreshError && (
+          <div
+            role="alert"
+            className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-100"
+          >
+            <p className="font-medium">Could not refresh launches.</p>
+            <p className="mt-1 break-words">{state.refreshError}</p>
+          </div>
+        )}
         {state.status === 'loading' && (
           <p role="status" className="rounded-md border border-line bg-card px-3 py-6 text-center text-muted">
             Loading launches…
