@@ -118,6 +118,7 @@ migrations (`supabase/tests/local_roles.sql` first, for the `anon` and `authenti
 | EVAL-079 | 2026-10-02, after EVAL-078 | A1: P0001 shown verbatim, other errors generic | local | 13 new tests pass, and 6 fail with the boundary removed; end to end on a local PostgREST: P0001 verbatim, 23514/23502/22P02/42501 generic | Reproducible from repo (unit tests); end-to-end run recorded only |
 | EVAL-080 | 2026-10-02, after EVAL-079 | A9 types generated locally; A8 provenance fields | local | Types match the local catalog (65 columns, 8 relations, 6 functions); 29/29 tests; A8 end to end on a local PostgREST | Reproducible from repo (generation command, unit tests); end-to-end run recorded only |
 | EVAL-081 | 2026-10-02, after EVAL-080 | A3 and the refresh infrastructure | local, build | 34/34 tests; local browser check: badge, canonical-only chip, banner; no overflow at 390 px | Reproducible from repo (unit tests); browser check recorded only |
+| EVAL-082 | 2026-10-02, after EVAL-081 | A6: source rendering rule | local, build | 6 new tests, 40/40 in total; both security mutants caught | Reproducible from repo |
 
 ---
 
@@ -1578,6 +1579,14 @@ Starting commit: `da583ab0188b9e6b34de99046909cecdbb8bc03b`, clean. Specificatio
 - **Browser check (recorded only), at 1440 px light and 390 px dark:** the canonical row has no badge and the sandbox row reads "Halcyon Support Copilot (sandbox) Sandbox"; the title chip reads "1 not ready"; the sandbox overview shows the banner, with no link or button in it, and the canonical overview doesn't; no horizontal scroll. Keeping content during a refresh isn't browser-checked, because nothing triggers a refresh yet; the unit test covers the rule.
 - **Result:** typecheck exit 0; build succeeds.
 - **Reproducibility:** the unit tests are reproducible from repo; the browser check is recorded only.
+
+### EVAL-082: A6, the source rendering rule
+- **Date:** 2026-10-02, after EVAL-081.
+- **Target:** local (Vitest) and build. No database or production involvement.
+- **Change:** `sourceView` in `src/lib/source.ts` returns `none` for a null source, `text` for a visitor-origin source or a seed source that doesn't parse or isn't https, and `link` (with `href` from the parsed URL and `rel: 'noopener noreferrer nofollow'`, no `target`) for a seed source whose `new URL(source).protocol` is `'https:'`. The rule depends on the row's `origin` only, so seed rows copied into the sandbox follow the seed rule. No page uses it yet: nothing renders `source` until the gate sheet.
+- **Tests:** `src/lib/source.test.ts`, 6 tests: a seed https link with the exact `rel` and no `target`; a visitor https source as text; seed `http:`, `javascript:`, `data:` and `mailto:` as text; unparseable seed sources as text; an upper-case `HTTPS:` scheme linking, as `new URL` reports `https:`; a null source as `none` for either origin. With the origin check removed, 1 test fails; with `rel` weakened to `noopener`, 2 fail.
+- **Result:** 40 of 40 tests; typecheck exit 0; build succeeds.
+- **Reproducibility:** reproducible from repo.
 
 ## Not run (don't claim these)
 

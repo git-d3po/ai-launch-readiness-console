@@ -521,6 +521,7 @@ restores the whole seed. **The project owner approved D1 to D7 on 2026-10-02** (
   - **Stage 1:** M-2 adds the CHECK constraint. It's in the repository and verified locally (DR-021), but **not applied to live**. The implemented pattern refines the Phase 2B text so that it doesn't depend on the collation provider (DR-021).
   - **Stage 2:** A6 sets the rendering rule. Not built. No UI renders `source` today.
   - **Update (2026-10-02, after the Stage 2 review):** the Stage 1 constraint was applied to live at 16:09 and verified there (EVAL-065, EVAL-066). A6 isn't built.
+  - **Update (2026-10-02, after EVAL-082):** A6's rule is implemented as `sourceView` in `src/lib/source.ts` and tested (EVAL-082). No page renders `source` yet; the gate sheet will use it.
 - **Context:** `evidence.source` accepts `javascript:` and other schemes. Nothing renders it today, but the gate sheet will (SEC-005).
 - **Options considered:**
   - a UI-only check
@@ -910,6 +911,7 @@ restores the whole seed. **The project owner approved D1 to D7 on 2026-10-02** (
   - **Update (2026-10-02, after EVAL-081):** A3 and the refresh infrastructure are in the repository, not yet committed (EVAL-081). A4 to A7 aren't built.
   - **Update (2026-10-02, after EVAL-081, refresh failures):** a failed refresh keeps the last successfully loaded content; initial-load and route-change failures keep the existing error behavior. How a refresh failure is shown is deferred to A4 and A7, which add the first refresh callers, and the code follows then (reconciliation record §19, **UI contract resolutions**, Refetch).
   - **Update (2026-10-02, after EVAL-081, commit):** A3 and the refresh infrastructure are committed (`053aaf8`), validated in EVAL-081. A4 to A7 aren't built.
+  - **Update (2026-10-02, after EVAL-082):** A6's rendering rule is implemented as `sourceView` (`src/lib/source.ts`, EVAL-082); no page renders `source` until the gate sheet. A4, A5 and A7 aren't built.
 - **Context:** the Stage 2 readiness audit found the sketches consistent but underspecified in seven places: the sandbox copy's scope, the visitor write UI, how the reset cooldown is shown, the fingerprint's meaning once a sandbox exists, production verification under I19, a conflict between R-6 and C-13, and Stage 1 tests that look gates up by title.
 - **Decision:**
   1. **Sandbox copy (M-5).** One owner-only routine copies every canonical launch into exactly one sandbox launch: all of its gates, evidence, risks, decisions and rollout stages, with every gate reference remapped. The M-5 migration builds the sandbox from the existing canonical rows without reseeding them. `reset_demo_data()` reseeds the canonical launch and rebuilds the sandbox **in one transaction**: either both complete or the whole operation rolls back, so a partially built sandbox can't survive. The mechanism is an implementation choice.

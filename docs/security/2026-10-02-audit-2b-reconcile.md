@@ -911,3 +911,4 @@ Recorded before the UI work starts. They settle what §10, the sections above, S
 - **Update (2026-10-02, after EVAL-080):** A8 and A9 are committed (`b423012`). The open A3 to A7 UI questions are settled in **UI contract resolutions** above; A3 to A7 aren't built.
 - **Update (2026-10-02, after EVAL-081):** A3 and the refresh infrastructure are in the repository, not yet committed (EVAL-081). A4 to A7 aren't built.
 - **Update (2026-10-02, after EVAL-081, commit):** A3 and the refresh infrastructure are committed (`053aaf8`), validated in EVAL-081. A4 to A7 aren't built.
+- **Update (2026-10-02, after EVAL-082):** A6's rendering rule is implemented as `sourceView` in `src/lib/source.ts` and tested (EVAL-082). No page renders `source` yet; the gate sheet will use it. A4, A5 and A7 aren't built.
