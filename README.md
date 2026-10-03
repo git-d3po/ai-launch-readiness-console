@@ -31,7 +31,9 @@ Other scripts (from `package.json`):
 | `npm run build` | Typecheck, then production build into `dist/` |
 | `npm run preview` | Serve the built `dist/` locally |
 
-The app needs a Supabase-compatible API in front of a database built from all seven migrations in `supabase/migrations/`. This repository doesn't script a local stack; without the variables below, pages show a "not configured" message.
+`node supabase/tests/migration_transport_lint.mjs` checks every migration file for characters and escape text a transport could change (DR-026); `npm test` runs its unit tests.
+
+The app needs a Supabase-compatible API in front of a database built from all eight migrations in `supabase/migrations/`, applied in file-name order. This repository doesn't script a local stack; without the variables below, pages show a "not configured" message.
 
 ## Environment variables
 

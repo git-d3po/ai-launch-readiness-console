@@ -290,6 +290,13 @@ claim about the current live state, which this documentation commit didn't read.
 
 I20 is checked after the rename: the repository and production must then agree on version, contents and order. The authoring timestamp isn't part of the invariant.
 
+**Update (DR-026, 2026-10-03): one exact, version-specific deviation.** For `20261003183331` `sandbox_provenance` (M-4) only, production's stored statement isn't the repository file: the tool transport decoded 24 escape texts into bidi characters (EVAL-088). I20 then holds in this exact form for that version, and in no looser one:
+- production's stored statement has md5 `4b09ad34a82823aacf22d4afa63bad53`;
+- the preserved artifact in [`docs/evaluation/artifacts/2026-10-03-m4-transport-incident/`](../evaluation/artifacts/2026-10-03-m4-transport-incident/README.md) decodes to exactly that text, and differs from the file only in the 24 recorded substitutions;
+- the repository file keeps the reviewed text, md5 `23dd3270cdca77001fe2f9a86917d518`.
+
+Every other version must match its file byte for byte, as before. The corrective migration `20261003190145_sandbox_text_rules_reencode.sql` returns the catalog to the reviewed text, so catalog parity (C-12, check 15) is normal again after it; only the history row of `20261003183331` keeps the deviation.
+
 ## 9. Remediation sequence
 
 | Step | What | Depends on | Establishes | Status |
@@ -437,6 +444,8 @@ query.
 - **C-9:** no `pg_default_acl` grant to `anon`, `authenticated` or PUBLIC for `postgres` in `public`.
 - **C-10:** `anon` and `authenticated` have identical privileges.
 - **C-11:** migration parity (EVAL-022's query).
+  - **Update (DR-026):** committed as `supabase/tests/migration_parity.sql`: one read-only SELECT that checks every recorded migration's name, order, md5 and, once fixed, version against the repository, reports later migrations as PENDING, and fails anything unexpected. For `20261003183331` it expects the stored md5 `4b09ad34a82823aacf22d4afa63bad53` and nothing else (§8, I20). A unit test keeps its md5s in step with the files and the artifact.
+  - **Transport lint (DR-026):** `supabase/tests/migration_transport_lint.mjs` checks each migration file's bytes before it is sent: no raw control, format or separator characters, and exact per-file counts of other non-ASCII code points, escape text and backslashes. It proves local file safety only; C-11 after each apply stays the gate.
 - **C-12:** fingerprint parity against an ephemeral database built from the repository.
 - **C-13:** the advisor shows zero 0028 and 0029 lints in Stage 1, and exactly the three documented functions in Stage 2.
   - **Update (DR-025):** reworded: the advisor's 0028 and 0029 findings name exactly the I4 allowlist and nothing else: none in Stage 1; in Stage 2, the three sandbox functions under each lint. Catalog check 9 enforces the same allowlist from the catalog, in both directions.
@@ -944,6 +953,7 @@ Recorded before the UI work starts. They settle what §10, the sections above, S
 - **Update (2026-10-02, after EVAL-086):** A7 is in the repository: the header "Reset sandbox" behind a confirmation, calling only `sandbox_reset()` and refreshing after every outcome, usable while a gate sheet is open, and the launch list's last-good-content refresh (EVAL-085, EVAL-086; **A7 as built** above). A1 and A3 to A9 are now in the repository and verified locally. Nothing is applied to live or hosted; the environment note above still holds.
 - **Update (2026-10-02, after EVAL-086, deployment preparation):** the Stage 2 deployment runbook is in §20. It is preparation only: nothing was run on production, and no deployment is authorized by it.
 - **Update (2026-10-03, EVAL-088): Stage 1 + M-4 only; Stage 2 incomplete and frontend deployment prohibited.** In an authorized window, M-4 was applied once and recorded as `20261003183331` `sandbox_provenance`. Its stored statement (md5 `4b09ad34a82823aacf22d4afa63bad53`, 3619 characters) isn't the reviewed file (`23dd3270cdca77001fe2f9a86917d518`): the tool transport turned the escape texts `\u202A`, `\u202E`, `\u2066` and `\u2069` into the bidi characters they name, in all six I14 constraints. Their behavior is unchanged (0 differences over every code point), but C-11 and I20 fail for that version, so M-5 and M-6 were withheld. M-4 grants nothing to the API roles: the public write surface stays closed and canonical data is unchanged. The repository files are unchanged; the M-4 file isn't yet renamed to the recorded version. The environment note above still holds, now against the Stage 1 + M-4 schema.
+- **Update (2026-10-03, DR-026):** the repository is reconciled with production, not yet applied: M-4 is renamed to `20261003183331_sandbox_provenance.sql` (contents unchanged); production's stored statement is preserved exactly as base64 with a verifier; the corrective `20261003190145_sandbox_text_rules_reencode.sql` restores the reviewed constraint text; M-5 and M-6 are re-timestamped to `20261003190146` and `20261003190147` (contents unchanged); a migration transport lint and a committed C-11 script exist; and §20 has the Stage 1 + M-4 preflight and the per-step checks. Every Stage 2 expected value (catalog check 15, the final fingerprint) is unchanged.
 
 ## 20. Stage 2 deployment runbook (deployment preparation, 2026-10-02, after EVAL-086)
 
@@ -957,6 +967,7 @@ This is the authoritative procedure for taking Stage 2 to production and to a pu
 - **Why it stopped:** M-4's stored statement has md5 `4b09ad34a82823aacf22d4afa63bad53` (3619 characters), not the reviewed file's `23dd3270cdca77001fe2f9a86917d518`. The tool transport decoded four escape texts into literal bidi characters in the six I14 constraints. Behavior is identical; text, and so C-11, isn't (EVAL-088).
 - **Safety:** a safe intermediate state, as **Safe intermediate states** below describes. The Stage 1 catalog instrument gives 16 of 17, failing only check 15 on `constraints` and `rls+owners`, the parts M-4 changes by design; the API roles have no write privilege and can execute no function; `sandbox_state` has RLS and no grants; canonical data is unchanged (`dc85e31b82116a9fa79adaac8399aa90`).
 - **Next window:** needs a new, explicit owner authorization. Its preflight must expect Stage 1 + M-4, not Stage 1: the Stage 1 preflight below (P2 to P5) no longer describes production and must not be used as written. The window also needs the repository to be reconciled first: the M-4 file renamed to its recorded version, the transport mismatch recorded exactly, and a reviewed way to restore the reviewed constraint text before M-5 and M-6.
+  - **Update (DR-026):** the repository is reconciled: M-4 is renamed to `20261003183331_sandbox_provenance.sql`, the stored statement is preserved exactly, the corrective migration exists, and M-5 and M-6 carry new authored versions after it. The next window runs **Preflight (next window: Stage 1 + M-4)** and **Applying the remaining migrations** below.
 - **Not allowed meanwhile:** applying M-5 or M-6 on top of the mismatch, any production repair or ad hoc SQL, and hosting the frontend.
 
 ### Stages and authorization
@@ -966,7 +977,7 @@ Each stage needs the previous one complete. **No stage authorizes the next:** st
 | Stage | State | Who moves it forward | Exit condition |
 |---|---|---|---|
 | 1 | **Repository ready.** Stage 2 database (M-4 to M-6) and UI (A1, A3 to A9) in the repository and verified locally (EVAL-071 to EVAL-087). | The owner, by authorizing stage 2 | Owner decisions recorded or explicitly deferred (below); authorization given |
-| 2 | **Database deployment authorized.** A dated, explicit owner authorization for one Stage 2 database window, including how the connector's confirmation is handled. **Current stage: interrupted.** The 2026-10-03 window applied M-4 only and stopped on a C-11 mismatch (EVAL-088); the authorization for it is spent, and the next window needs a new one. | The deployer, by running the preflight and then the three applications | Preflight passed; M-4, M-5 and M-6 applied once each |
+| 2 | **Database deployment authorized.** A dated, explicit owner authorization for one Stage 2 database window, including how the connector's confirmation is handled. **Current stage: interrupted.** The 2026-10-03 window applied M-4 only and stopped on a C-11 mismatch (EVAL-088); the authorization for it is spent, and the next window needs a new one. | The deployer, by running the preflight and then the applications | Preflight passed; each migration applied once with its per-step checks passed (since DR-026: the corrective, M-5 and M-6) |
 | 3 | **Database deployed and verified.** Post-deployment checks passed; files renamed and parity proven; evidence committed. | The owner, by authorizing stage 4 | Every post-deployment check passes |
 | 4 | **Frontend deployed, not released.** Built with the live values, hosted with the SPA fallback, HTTPS and headers, CSP in Report-Only. The URL isn't shared. | The owner, by authorizing stage 5 | Hosted build loads; headers present |
 | 5 | **Production smoke test complete.** The first exercise of the public API path; mutates sandbox data only. | The owner, by authorizing stage 6 | Every smoke step passes; sandbox reset at the end; canonical data unchanged |
@@ -975,6 +986,8 @@ Each stage needs the previous one complete. **No stage authorizes the next:** st
 ### Do not do (before the stage that authorizes it)
 
 - Apply M-4, M-5 or M-6 to production.
+- Send M-4 again, in any form: it is applied (`20261003183331`), and only the corrective changes its constraints.
+- Apply M-5 or M-6 before the corrective, or any of the three without the per-step checks below.
 - Retry a failed or uncertain production migration automatically, or apply one twice.
 - Use `supabase migration repair` or any other history-only tool.
 - Run ad hoc SQL on production as a substitute for a migration, or any production SQL that writes.
@@ -1000,28 +1013,32 @@ Recorded as the owner decided them; none of them authorizes a deployment stage.
 
 ### Database deployment order and dependencies
 
-| Order | Migration | Authored file (md5, bytes) | Depends on | Grants to API roles |
+**Updated (DR-026, 2026-10-03).** M-4 is applied; the remaining order is the corrective, M-5, M-6.
+
+| Order | Migration | File (md5, bytes) | Depends on | Grants to API roles |
 |---|---|---|---|---|
-| 1 | M-4 `sandbox_provenance` | `20261002170823_sandbox_provenance.sql` (`23dd3270cdca77001fe2f9a86917d518`, 3739) | Stage 1 (`20261002160901`) | None |
-| 2 | M-5 `sandbox_seed` | `20261002170824_sandbox_seed.sql` (`b6c04e38855362dc4d6d4cdd2be16a68`, 20949) | M-4's `record_origin`, `origin`, `source_launch_id`, `source_gate_id` | None: `set_gate_status`, `build_sandbox()` and `reset_demo_data()` stay owner-only |
-| 3 | M-6 `sandbox_rpcs` | `20261002170825_sandbox_rpcs.sql` (`283c1e59342ece367e58c693f33c029a`, 8698) | M-5's `set_gate_status(..., origin)` and the sandbox it builds | EXECUTE on exactly `sandbox_add_evidence`, `sandbox_set_gate_status`, `sandbox_reset` |
+| 1 | M-4 `sandbox_provenance` | **Applied** as `20261003183331` (EVAL-088). `20261003183331_sandbox_provenance.sql` (`23dd3270cdca77001fe2f9a86917d518`, 3739); production stored `4b09ad34a82823aacf22d4afa63bad53` (§8, I20) | Stage 1 (`20261002160901`) | None |
+| 2 | Corrective `sandbox_text_rules_reencode` | `20261003190145_sandbox_text_rules_reencode.sql` (`ed1eca24d1efdd0e17578f20b7330973`, 5501) | M-4's six I14 constraints, holding either the reviewed or the transported text | None |
+| 3 | M-5 `sandbox_seed` | `20261003190146_sandbox_seed.sql` (`b6c04e38855362dc4d6d4cdd2be16a68`, 20949) | M-4's `record_origin`, `origin`, `source_launch_id`, `source_gate_id` | None: `set_gate_status`, `build_sandbox()` and `reset_demo_data()` stay owner-only |
+| 4 | M-6 `sandbox_rpcs` | `20261003190147_sandbox_rpcs.sql` (`283c1e59342ece367e58c693f33c029a`, 8698) | M-5's `set_gate_status(..., origin)` and the sandbox it builds | EXECUTE on exactly `sandbox_add_evidence`, `sandbox_set_gate_status`, `sandbox_reset` |
 
-The md5s were recomputed from the repository files for this section and equal EVAL-078.
+M-4, M-5 and M-6 were renamed without changing a byte; their md5s equal EVAL-078. The authored names before 2026-10-03 were `20261002170823_sandbox_provenance.sql`, `20261002170824_sandbox_seed.sql` and `20261002170825_sandbox_rpcs.sql`. Every file passes the transport lint (`node supabase/tests/migration_transport_lint.mjs`); the corrective and M-6 are printable ASCII with no backslash, and M-5's only non-ASCII character is its reviewed U+2192 (DR-026).
 
-**Safe intermediate states:** M-4 and M-5 give the API roles no new privilege, so a stop after either leaves no public write path; the Stage 1 read-only boundary still holds. Only M-6 creates the public surface, and it is the approved I4 allowlist. The Stage 2 app isn't hosted at any of these points.
+**Safe intermediate states:** M-4, the corrective and M-5 give the API roles no new privilege, so a stop after any of them leaves no public write path; the Stage 1 read-only boundary still holds. Only M-6 creates the public surface, and it is the approved I4 allowlist. The Stage 2 app isn't hosted at any of these points.
 
 ### Production mutation boundary: applying the migrations (stage 2)
 
-Applying M-4 to M-6 **changes production** and is effectively irreversible: undoing it means new migrations, and the history keeps every applied version. It needs the owner's explicit authorization for this window (DR-024 Safety).
+Applying the remaining migrations **changes production** and is effectively irreversible: undoing it means new migrations, and the history keeps every applied version. It needs the owner's explicit authorization for this window (DR-024 Safety). The 2026-10-03 authorization is spent (EVAL-088).
 
-- **Path:** the Supabase connector only (DR-024). One `apply_migration` call per migration, in the order above; `name` is the file's name part (`sandbox_provenance`, `sandbox_seed`, `sandbox_rpcs`) and `query` is the file's exact bytes.
-- **Between calls:** read `list_migrations` and record the version Supabase assigned before the next call.
+- **Path:** the Supabase connector only (DR-024). One `apply_migration` call per migration, in the order above: the corrective, M-5, M-6. `name` is the file's name part (`sandbox_text_rules_reencode`, `sandbox_seed`, `sandbox_rpcs`) and `query` is the file's exact text.
+- **After every call:** the per-step checks in **Applying the remaining migrations** below, before the next call.
 - **Failure or uncertainty:** stop at once. No automatic retry. A timeout is uncertain, not a failure: read `list_migrations` (and, if needed, the fingerprint) to learn what happened before anything else, and report to the owner. Never fall back to ad hoc SQL or `migration repair`.
-- **The connector's confirmation:** M-5 runs `drop function public.set_gate_status(...)`, and function bodies contain `truncate` and `delete`. The connector may ask to confirm SQL it detects as destructive, and this client didn't display that request in the Stage 1 window (EVAL-062, EVAL-063). Under DR-024 Amendment A1, a temporary `skip_elicitations=apply_migration` setting needs the owner's own explicit authorization for this window, is set by the owner outside the repository, and is removed afterwards whatever the outcome. A client that shows the confirmation is the alternative. This section doesn't enable or change the setting.
+- **The connector's confirmation:** the corrective runs `drop constraint` (inside its `DO` block), M-5 runs `drop function public.set_gate_status(...)`, and function bodies contain `truncate` and `delete`. The connector may ask to confirm SQL it detects as destructive, and this client didn't display that request (EVAL-062, EVAL-063). Under DR-024 Amendment A1, a temporary `skip_elicitations=apply_migration` setting needs the owner's own explicit authorization for this window, is set by the owner outside the repository, and is removed afterwards whatever the outcome. A client that shows the confirmation is the alternative. This section doesn't enable or change the setting.
+- **Transport:** every remaining file is transport-safe by the lint's rules, but that proves nothing about delivery (DR-026). C-11 right after each call is the gate.
 
-### Preflight (stage 2, before the first `apply_migration`)
+### Preflight used on 2026-10-03 (Stage 1; superseded)
 
-**Superseded for the next window (EVAL-088):** this preflight expects Stage 1. Production is now at Stage 1 + M-4, so P2 to P5 below fail as written. It stays here as the record of what the 2026-10-03 window ran.
+**Superseded for the next window (EVAL-088):** this preflight expects Stage 1. Production is now at Stage 1 + M-4, so P2 to P5 below fail as written. It stays here as the record of what the 2026-10-03 window ran; the next window uses **Preflight (next window: Stage 1 + M-4)** below. Its P6 query is still the isolation check.
 
 All checks are read-only. Run SQL in a read-only transaction where the tool allows it. Any stop condition ends the window before anything is applied.
 
@@ -1056,15 +1073,68 @@ where (s.setdatabase = 0 or d.datname = current_database())
 
 Pass: the first returns `read committed`; the second returns no rows, or only `default_transaction_isolation=read committed`.
 
+### Preflight (next window: Stage 1 + M-4)
+
+**Added by DR-026 (2026-10-03).** Run before the corrective's `apply_migration`, after a new owner authorization. All checks are read-only; any stop condition ends the window before anything is applied. The expected values come from a local replay of Stage 1 plus production's exact stored M-4 (EVAL-089); production's own HEAD fingerprint hasn't been read since M-4, so P4 is the first comparison on live.
+
+**Local, before any production call:** HEAD clean and in sync; `node supabase/tests/migration_transport_lint.mjs` passes; `node docs/evaluation/artifacts/2026-10-03-m4-transport-incident/verify.mjs` passes; the three remaining files have the md5s in the order table above.
+
+**Instruments:** the HEAD `fingerprint.sql` and `migration_parity.sql`, and the Stage 1 `security_catalog.sql` from `da583ab` (md5 `444656761f14b65700d0285f7f1e8752`), which shows the write boundary without Stage 2's allowlist. The HEAD catalog test is expected to fail checks 9 and 15 here, by design.
+
+| # | Check | Pass condition | Stop condition |
+|---|---|---|---|
+| P1 | Project status (`get_project`) | Active and healthy | Any other status |
+| P2 | Migration history (`list_migrations`) | Exactly 5: the 4 Stage 1 versions, then `20261003183331` `sandbox_provenance`; none named `sandbox_text_rules_reencode`, `sandbox_seed` or `sandbox_rpcs` | Any other count, version or name |
+| P3 | C-11 (`migration_parity.sql`) | Rows 1 to 5 PASS, rows 6 to 8 PENDING; overall PASS, "5 recorded, 3 pending". Row 5: md5 `4b09ad34a82823aacf22d4afa63bad53`, 3619 characters | Any FAIL, or other counts |
+| P4 | Fingerprint (HEAD) | All 12 parts equal the **Stage 1 + M-4** table below; `canonical_data` `dc85e31b82116a9fa79adaac8399aa90` | Any part differs |
+| P5 | The six I14 constraints (query below) | Each md5 equals its **transported** value below | Any other value. Reviewed values here mean the constraints changed since EVAL-088: stop and diagnose |
+| P6 | Catalog test, Stage 1 instrument | 16 of 17: only check 15 fails, with detail exactly `differs: constraints, rls+owners`. Checks 1 to 9 pass: no write privilege, no executable function | Any other failure |
+| P7 | Isolation | `read committed`, no incompatible override (the query under the 2026-10-03 preflight above) | Any other default or override |
+| P8 | Advisors | Recorded as found. Expected: no security lints except, possibly, INFO 0008 (RLS enabled, no policy) on `sandbox_state`, which M-4 created and which is intended (§19); the performance INFO lints of EVAL-066 | A new security lint other than that is investigated before applying |
+
+**Stage 1 + M-4 fingerprint** (P4): `canonical_data` `dc85e31b82116a9fa79adaac8399aa90`; `column_write_grants` empty; `columns` `5ccb40dee76743f39a4925c451918d8b`; `constraints` `0887380c748bd9214f38e3d6d87310b4`; `enums` `340c40cc9480c4f6a58b865484673882`; `functions` `8389103e34beaefa36fa084837e7320b`; `indexes` `77508543fc9b1654352bd6731e735112`; `policies` `5413a6d3b0520ccf75b53f4f7067bef1`; `rls+owners` `212e4cf60f3f93c8149028d284bd0282`; `table_grants` `81ed597a2d217bdefda59babdc03008a`; `user_triggers` `334c4a4c42fdb79d7ebc3e73b517e6f8`; `views` `6c60d69e83dedcece4f5b8c698c2ba7e`. `constraints` equals the value EVAL-072 recorded for M-4's draft with raw bidi characters, which is the same text.
+
+**The six constraints** (P5, and after the corrective):
+
+```sql
+select conname, md5(pg_get_constraintdef(oid))
+from pg_constraint
+where connamespace = 'public'::regnamespace and contype = 'c'
+  and conname in ('evidence_title_single_line', 'evidence_summary_text', 'decisions_decision_single_line',
+                  'decisions_rationale_text', 'decisions_waiver_rationale_text', 'gates_waiver_rationale_text')
+order by conname;
+```
+
+| Constraint | Transported (production now; EVAL-088) | Reviewed (after the corrective) |
+|---|---|---|
+| `decisions_decision_single_line` | `36939f7c6b962d87f43ba3c5df8e92a6` | `36872f3318c6e758cf2d684d5abd67e8` |
+| `decisions_rationale_text` | `d1fc54e70998b70b7bbb4e68514a4ce1` | `1ccdf7c815fc3f3ebcbed26ab8a977c6` |
+| `decisions_waiver_rationale_text` | `a47f26af6931645ac1ada5ac1eb9fcaa` | `ded9db6592d3ffba218ddd1c5c4b8080` |
+| `evidence_summary_text` | `c9589e78071cb8348115a68bee363a7c` | `5b5807225542933c1c67d6cc0ab151fc` |
+| `evidence_title_single_line` | `dee9990b68e6ba9b6c242c17d3eee8b4` | `fd7ab640f15373e4914dd240e790d5f0` |
+| `gates_waiver_rationale_text` | `a47f26af6931645ac1ada5ac1eb9fcaa` | `ded9db6592d3ffba218ddd1c5c4b8080` |
+
+### Applying the remaining migrations (per-step checks)
+
+One `apply_migration` call at a time, in order. After each call, before the next, all of these, read-only; any mismatch, error or ambiguity is a hard stop, with no retry:
+
+| After | `list_migrations` | C-11 (`migration_parity.sql`) | Further checks |
+|---|---|---|---|
+| Corrective | Exactly 6; the new one named `sandbox_text_rules_reencode`, after `20261003183331`, once. Record its version | Overall PASS, "6 recorded, 2 pending"; row 6 md5 `ed1eca24d1efdd0e17578f20b7330973`, 5501 characters | The six constraints equal the **Reviewed** column above. Fingerprint `constraints` `a7f08cda3a69929594e9dad491fac570`, `functions` `8389103e34beaefa36fa084837e7320b`, `canonical_data` `dc85e31b82116a9fa79adaac8399aa90`. Stage 1 catalog: 16 of 17, check 15 `differs: constraints, rls+owners` |
+| M-5 | Exactly 7; `sandbox_seed` next, once | Overall PASS, "7 recorded, 1 pending"; row 7 md5 `b6c04e38855362dc4d6d4cdd2be16a68`, 20947 characters (20949 bytes: one U+2192) | Fingerprint `constraints` `a7f08cda3a69929594e9dad491fac570`, `functions` `9cf3a14ab12057f876a5a45e2250e592`, `canonical_data` `dc85e31b82116a9fa79adaac8399aa90`. Stage 1 catalog: 16 of 17, check 15 `differs: constraints, rls+owners, functions`; check 9 passes (nothing executable yet). C-14 7 of 7 |
+| M-6 | Exactly 8; `sandbox_rpcs` next, once | Overall PASS, "8 recorded, 0 pending"; row 8 md5 `283c1e59342ece367e58c693f33c029a`, 8698 characters | The post-deployment checks below, V1 to V9 |
+
+A FAIL on the corrective's own row means the transport changed it: stop. If the corrective's self-check raises, the call fails and nothing changes (EVAL-089); read `list_migrations` to confirm, and stop.
+
 ### Post-deployment checks (stage 3, after M-6)
 
 All checks are read-only and use the HEAD instruments. No sandbox function is called (DR-025 item 5).
 
 | # | Check | Pass condition | Reference |
 |---|---|---|---|
-| V1 | Migration history | 7 versions: the 4 from P2, then the 3 versions Supabase recorded for M-4, M-5, M-6, in that order, each once | DR-024 steps 5 and 7 |
-| V2 | File reconciliation | Each new file renamed to its recorded version, contents unchanged (DR-009, DR-024 step 6). Parity evidence counts only after the rename | DR-009 |
-| V3 | C-11 parity for all 7 | The 4 md5s from P3, and for the new 3: `23dd3270cdca77001fe2f9a86917d518`, `b6c04e38855362dc4d6d4cdd2be16a68`, `283c1e59342ece367e58c693f33c029a`. The connector stores each file as one statement; if a tool ever splits statements, compare them with the file instead (§16) | EVAL-068 |
+| V1 | Migration history | 8 versions: the 4 Stage 1 versions, `20261003183331` (M-4), then the versions Supabase recorded for the corrective, M-5 and M-6, in that order, each once. (Before DR-026: 7, without the corrective) | DR-024 steps 5 and 7 |
+| V2 | File reconciliation | The corrective, M-5 and M-6 renamed to their recorded versions, contents unchanged (DR-009, DR-024 step 6), and those versions fixed in `migration_parity.sql` in the same commit. M-4 is already renamed. Parity evidence counts only after the rename | DR-009 |
+| V3 | C-11 parity for all 8 | `migration_parity.sql`: overall PASS, "8 recorded, 0 pending". That is: the 4 Stage 1 md5s; for `20261003183331`, the stored `4b09ad34a82823aacf22d4afa63bad53` (the one exact deviation, §8 I20); then `ed1eca24d1efdd0e17578f20b7330973`, `b6c04e38855362dc4d6d4cdd2be16a68`, `283c1e59342ece367e58c693f33c029a`. The connector stores each file as one statement; if a tool ever splits statements, compare them with the file instead (§16) | EVAL-068, EVAL-088; DR-026 |
 | V4 | Catalog test (HEAD) | 17 of 17. Check 9: API roles execute exactly `sandbox_add_evidence`, `sandbox_set_gate_status`, `sandbox_reset`. Check 15: 7 of 7 against the values below | EVAL-078 |
 | V5 | Fingerprint (HEAD) | All 12 parts equal the table below | EVAL-072, EVAL-078 |
 | V6 | C-14 (`sandbox_invariants.sql`, as `postgres`, read-only) | 7 of 7 | EVAL-078 |
