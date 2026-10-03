@@ -1,5 +1,6 @@
 import { computeReadiness, type Readiness, type ReadinessGate } from '../domain/readiness';
 import type { Database } from './database.types';
+import { toDataError } from './errors';
 import type { Client } from './supabase';
 
 type Enums = Database['public']['Enums'];
@@ -31,8 +32,8 @@ export async function fetchLaunchRows(client: Client): Promise<LaunchRow[]> {
       .order('name'),
     client.from('launch_current_stage').select('launch_id, stage, status'),
   ]);
-  if (launches.error) throw new Error(launches.error.message);
-  if (stages.error) throw new Error(stages.error.message);
+  if (launches.error) throw toDataError(launches.error);
+  if (stages.error) throw toDataError(stages.error);
   return toLaunchRows(launches.data, stages.data);
 }
 

@@ -5,6 +5,7 @@ import { gateTone, StatusChip } from '../components/StatusChip';
 import { Constants } from '../lib/database.types';
 import { formatTargetDate } from '../lib/launches';
 import { fetchLaunchOverview, type LaunchOverview, missingLine, type OverviewGate } from '../lib/overview';
+import { userMessage } from '../lib/errors';
 import { supabase } from '../lib/supabase';
 import { NotFound } from './NotFound';
 
@@ -38,7 +39,7 @@ export function LaunchOverviewPage() {
         if (!cancelled) setState(overview ? { status: 'success', overview } : { status: 'not-found' });
       })
       .catch((error: unknown) => {
-        if (!cancelled) setState({ status: 'error', message: error instanceof Error ? error.message : String(error) });
+        if (!cancelled) setState({ status: 'error', message: userMessage(error, 'Could not load data') });
       });
     return () => {
       cancelled = true;

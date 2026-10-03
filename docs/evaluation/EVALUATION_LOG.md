@@ -115,6 +115,7 @@ migrations (`supabase/tests/local_roles.sql` first, for the `anon` and `authenti
 | EVAL-076 | 2026-10-02, after EVAL-075 | Stage 2: full re-run after the EVAL-075 fixes | local, build | 17/17, 7/7, 24/24, 29/29, 6/6, 4 races + check 5; canonical_data unchanged; 11/11, typecheck, build | Reproducible from repo |
 | EVAL-077 | 2026-10-02, after EVAL-076 | Stage 2: visitor functions refuse isolation levels above READ COMMITTED | local | Pre-guard: 11th item and Passed without evidence at both levels; guarded: refused, 9/9 | Reproducible from repo (checks 6 to 9); scratch probes recorded only |
 | EVAL-078 | 2026-10-02, after EVAL-077 | Stage 2: full re-run after EVAL-077 | local, build | 17/17, 7/7, 24/24, 29/29, 6/6, concurrency 9/9 (x2, plus 3 earlier runs); stress 0 deadlocks; canonical_data unchanged; 11/11, typecheck, build | Reproducible from repo; stress recorded only |
+| EVAL-079 | 2026-10-02, after EVAL-078 | A1: P0001 shown verbatim, other errors generic | local | 13 new tests pass, and 6 fail with the boundary removed; end to end on a local PostgREST: P0001 verbatim, 23514/23502/22P02/42501 generic | Reproducible from repo (unit tests); end-to-end run recorded only |
 
 ---
 
@@ -1534,6 +1535,21 @@ Starting commit: `da583ab0188b9e6b34de99046909cecdbb8bc03b`, clean. Specificatio
     - **Cap run, no resets:** 8 sessions making 240 adds and 240 status changes on two gates, and 30 refused REPEATABLE READ adds. 0 deadlocks. Both gates stopped at exactly 10 visitor items and 20 visitor decisions, and each gate's status equals its latest decision. C-14 7/7.
   - App: Vitest 11 of 11, typecheck exit 0, build succeeds.
 - **Reproducibility:** reproducible from repo, except the stress runs.
+
+### EVAL-079: A1, P0001 shown verbatim and other errors generic
+- **Date:** 2026-10-02, after EVAL-078.
+- **Target:** local (Vitest, and a local PostgREST 12.2.3 on a disposable database built from this repository). No production call.
+- **Change:** `src/lib/errors.ts` is the boundary. `fetchLaunchRows` and `fetchLaunchOverview` throw `toDataError(error)` instead of `new Error(error.message)`, and both pages show `userMessage(error, 'Could not load data')` instead of the error's message. No migration, permission or dependency changed.
+- **Tests:** `src/lib/errors.test.ts`, 13 tests through a real supabase-js client whose fetch returns PostgREST error bodies captured from the local database as `anon`. They cover:
+  - two P0001 messages, and a structured-looking one, shown exactly as raised;
+  - a CHECK violation, a NOT NULL violation and a permission error, shown only as generic text with their codes; no raw message or `details` text reaches the shown text or the thrown error;
+  - a network failure, a non-JSON body, a malformed code and a non-database error, shown as generic text alone;
+  - the overview path, and a successful load with its result unchanged.
+
+  With the launches path reverted to `new Error(error.message)`, 6 of the 13 fail.
+- **End to end (recorded only):** the real data layer and boundary against the local PostgREST, as `anon`. The launches load succeeds (both launches, "6 of 16 passed"). `sandbox_add_evidence` on a canonical gate shows `Only sandbox gates accept visitor evidence` verbatim. A control character (23514), a null title (23502), an unknown evidence type (22P02) and a direct insert (42501) each show `Could not save (code XXXXX)`, without the constraint or column names their raw messages carry.
+- **Result:** Vitest 24 of 24 (11 existing, 13 new); typecheck exit 0; build succeeds.
+- **Reproducibility:** the unit tests are reproducible from repo; the end-to-end run is recorded only.
 
 ## Not run (don't claim these)
 

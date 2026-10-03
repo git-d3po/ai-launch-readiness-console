@@ -1,5 +1,6 @@
 import { computeReadiness, type Readiness } from '../domain/readiness';
 import { Constants, type Database } from './database.types';
+import { toDataError } from './errors';
 import type { Client } from './supabase';
 
 type Enums = Database['public']['Enums'];
@@ -60,7 +61,7 @@ export async function fetchLaunchOverview(client: Client, launchId: number): Pro
   ]);
 
   const failed = [launch, gates, risks, stages, currentStage, latestDecisions, gateDecisions].find((r) => r.error);
-  if (failed?.error) throw new Error(failed.error.message);
+  if (failed?.error) throw toDataError(failed.error);
   if (!launch.data) return null;
 
   const latestRationale = latestRationaleByGate(gateDecisions.data ?? []);

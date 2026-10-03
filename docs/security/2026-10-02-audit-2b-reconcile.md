@@ -275,7 +275,7 @@ These are the properties the remediation must establish and the tests must keep 
 | I15 | The database sets visitor identity and dates: `decided_by = 'Sandbox visitor'`, and `recorded_on` is the server date. | Stage 2 |
 | I16 | No visitor-supplied URL renders as a link, and all database text renders as React text nodes. | Text nodes hold today; the URL rule is Stage 2 |
 | I17 | Displayed readiness is computed only from fetched rows, and the client never writes it. | Holds today |
-| I18 | The UI shows only deliberately raised application messages (SQLSTATE P0001). Every other error is shown generically, with its code. | Deferred (A1) |
+| I18 | The UI shows only deliberately raised application messages (SQLSTATE P0001). Every other error is shown generically, with its code. | Deferred (A1). A1 is now in the repository (EVAL-079) |
 | I19 | Destructive tests run only against local or ephemeral databases. Only read-only catalog tests run against production. | Process, now |
 | I20 | Migrations reach production through exactly one path, and the repository files match `supabase_migrations` byte for byte. | DR-019 |
 
@@ -409,7 +409,7 @@ alter default privileges for role postgres in schema public revoke all on tables
 
 | ID | Stage | Item |
 |---|---|---|
-| A1 | Low priority; **Stage 2 prerequisite** (DR-025) | Show the error message only for SQLSTATE `P0001`; otherwise show "Could not load data (code XXXXX)" |
+| A1 | Low priority; **Stage 2 prerequisite** (DR-025) | Show the error message only for SQLSTATE `P0001`; otherwise show "Could not load data (code XXXXX)". **In the repository** (EVAL-079): `src/lib/errors.ts`, see §19 **Errors** |
 | A2 | Low priority | Route ids match `/^\d{1,15}$/`; anything longer goes to Not found (N5) |
 | A3 | Stage 2 | Sandbox banner, a "Sandbox" badge in the list; the title chip counts canonical launches only |
 | A4 | Stage 2 | Canonical pages show no write controls and link to "Try this in the sandbox" |
@@ -862,6 +862,7 @@ All three are SECURITY DEFINER, owned by `postgres`, with `search_path = ''`, no
 - **Change status:** any status except the current one. Rationale is required (at most 2000, multi-line). Passed needs at least one evidence item of either origin; the option is disabled with "Add evidence first" when there's none. Waived needs waiver text (at most 2000). Changes can repeat until 20 visitor decisions exist on the gate, then a cap message replaces the form.
 - **Success:** the gate, its evidence, its decisions and readiness are refetched (I17).
 - **Errors:** P0001 messages are shown verbatim (A1); anything else shows "Could not save (code XXXXX)".
+  - **The boundary (A1, in the repository):** the data layer turns every PostgREST error into a `DataError` (`src/lib/errors.ts`) and the UI shows only `userMessage(error, generic)`. A P0001 message is a contract between the database functions and the user, so it is passed through exactly as raised, matched on the `code` field equal to `P0001`, never on message text. Every other error, including constraint violations (23514, 23502), type errors (22P02), permission errors (42501), PostgREST errors (`PGRST...`), network failures and bugs, shows only the caller's generic text and the code; its message, details and hint, which can name constraints and echo whole rows, are dropped at the boundary. A code that isn't a five-character SQLSTATE or a `PGRST` code isn't shown, and neither is a missing one: the generic text then stands alone.
 - **The client never writes a table** and calls no function except the three sandbox functions.
 
 ### Reset UX (A7)
@@ -891,3 +892,4 @@ All three are SECURITY DEFINER, owned by `postgres`, with `search_path = ''`, no
   - The M-6 header and this section said every rule violation raises P0001. Constraint violations keep their own SQLSTATE; both texts now say so.
   - Re-verified on fresh builds: catalog 17/17 (check 15's `functions` value is now `04dd6a74f664cd7a92deb5d491a90e8f`), C-14 7/7, Stage 1 behavior 24/24, B-4 29/29, integrity 6/6, concurrency 4 races and check 5, `canonical_data` unchanged.
 - **Update (2026-10-02, after EVAL-077):** the same isolation dependency held for the visitor functions. Above READ COMMITTED, `sandbox_add_evidence` could add an 11th item and `sandbox_set_gate_status` could pass a gate whose evidence a concurrent reset had deleted. Both now refuse REPEATABLE READ and SERIALIZABLE, as `sandbox_reset` does (see **Isolation** above; EVAL-077). Re-verified on fresh builds (EVAL-078): catalog 17/17 (check 15's `functions` value is now `849220530a3d4b56a35f4e154a6d19e6`), C-14 7/7, Stage 1 behavior 24/24, B-4 29/29, integrity 6/6, concurrency 9/9, `canonical_data` unchanged.
+- **Update (2026-10-02, after EVAL-078):** A1 is in the repository and tested (EVAL-079). The two read pages use it today; the write and reset UI (A3 to A9) will call the same `userMessage`. Not deployed.

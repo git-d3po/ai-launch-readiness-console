@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { focusRing } from '../components/AppShell';
 import { StatusChip } from '../components/StatusChip';
 import { fetchLaunchRows, formatTargetDate, type LaunchRow } from '../lib/launches';
+import { userMessage } from '../lib/errors';
 import { supabase } from '../lib/supabase';
 
 type LoadState =
@@ -24,7 +25,7 @@ export function LaunchesPage() {
     fetchLaunchRows(supabase)
       .then((rows) => !cancelled && setState({ status: 'success', rows }))
       .catch((error: unknown) => {
-        if (!cancelled) setState({ status: 'error', message: error instanceof Error ? error.message : String(error) });
+        if (!cancelled) setState({ status: 'error', message: userMessage(error, 'Could not load data') });
       });
     return () => {
       cancelled = true;
