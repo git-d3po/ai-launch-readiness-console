@@ -125,6 +125,8 @@ migrations (`supabase/tests/local_roles.sql` first, for the `anon` and `authenti
 | EVAL-086 | 2026-10-02, after EVAL-085 | A7 follow-up: reset usable with a gate sheet open; a P0001 rejection refreshes; focus kept below the sticky header | local, build | 80/80 tests; 56/56 local browser checks; 14/14 keyboard-focus checks | Reproducible from repo (unit tests); browser walkthrough recorded only |
 | EVAL-087 | 2026-10-02, after EVAL-086 | Lovable presentation pass imported (DR-004 A2) | local, build | 80/80 tests; 131/131 presentation checks on real local data; A7 56/56 and focus 14/14 re-run | Reproducible from repo (unit tests); browser walkthrough recorded only |
 | EVAL-088 | 2026-10-03, 18:14 to 18:43 | Stage 2 production window: preflight twice, M-4 applied once, stopped on a C-11 mismatch | live read-only, live write | P1 to P7 pass; M-4 recorded as `20261003183331`; stored md5 `4b09ad34a82823aacf22d4afa63bad53` not the file's `23dd3270cdca77001fe2f9a86917d518`; M-5 and M-6 not applied; write surface closed, canonical data unchanged | Recorded only |
+| EVAL-089 | 2026-10-03, 19:05 to 19:20 | DR-026 local validation: production-replica and clean replays, the corrective's negative tests, C-11 script faults | local | Both paths converge on the Stage 2 baseline; 17/17, 7/7, 24/24, 29/29, 9/9, 6/6 on each; I14 0 mismatches; every fault refused atomically | Reproducible from repo (migrations, suites, verifier); the step harness and fault cases recorded only |
+| EVAL-090 | 2026-10-03, 19:04 to 19:23 | DR-026 repository validation; the tool path decoded the same four escape texts in a file write | local, build, static | Lint 8/8; 116/116 tests; lint mutants 5/5 caught; typecheck, build; hygiene found and fixed 4 raw bidi characters before commit | Reproducible from repo; the reproduction recorded only |
 
 ---
 
@@ -1729,6 +1731,45 @@ All times in this section are UTC on **2026-10-03**. Starting commit: `988e73812
   - The Deployment connector's `skip_elicitations` value was never readable from the session; it rests on the owner's configuration.
 - **Reproducibility:** recorded only. C-11's query (EVAL-022) repeats the parity reading.
 
+## Stage 2 reconciliation after the interrupted window (2026-10-03, 18:54 to 19:23)
+
+All times in this section are UTC on **2026-10-03**. Local and repository work only: no Supabase or Railway call was made, and nothing was deployed. Commits: `e02e44d` (EVAL-088), then `110789f` (DR-026), both unpushed.
+
+### EVAL-089: DR-026 local validation of both paths
+- **Date:** 19:05 to 19:20.
+- **Commit:** `110789f` (run on its working tree before the commit; migrations and test files unchanged since).
+- **Target:** local: a disposable Postgres 17.10 cluster, one database per path, each built from `supabase/tests/local_roles.sql`. Every migration ran in its own transaction (`psql -1`), as `apply_migration` does. A local `supabase_migrations.schema_migrations` table recorded each applied text, so `migration_parity.sql` could run after every step; it was dropped before the behavior suites, whose I19 guard refuses to run where that schema exists (they refused, as designed, until it was dropped).
+- **Paths:**
+  - **Production replica:** Stage 1, then production's exact stored M-4 decoded from the artifact by `verify.mjs --write-stored` (md5 `4b09ad34a82823aacf22d4afa63bad53`), then the corrective, M-5, M-6.
+  - **Clean replay:** Stage 1, then the reviewed `20261003183331_sandbox_provenance.sql`, the corrective, M-5, M-6.
+- **Result, after M-4 (replica):** the six constraints equal production's transported md5s (EVAL-088) and aren't ASCII. HEAD fingerprint: `constraints` `0887380c748bd9214f38e3d6d87310b4`, `functions` `8389103e34beaefa36fa084837e7320b`, `canonical_data` `dc85e31b82116a9fa79adaac8399aa90`, other parts as in §20's Stage 1 + M-4 table. Stage 1 catalog 16 of 17 (check 15: `differs: constraints, rls+owners`); HEAD catalog 15 of 17 (checks 9 and 15); C-11 script rows 1 to 5 PASS, overall PASS "5 recorded, 3 pending". I14: each of the six patterns compared with the specification over every code point from 1 to 1114111, surrogates excluded (1112063 each): 0 mismatches; 73 rejected by single-line and 70 by multi-line patterns.
+- **After the corrective:** both paths hold the reviewed md5s (`fd7ab640f15373e4914dd240e790d5f0`, `5b5807225542933c1c67d6cc0ab151fc`, `36872f3318c6e758cf2d684d5abd67e8`, `1ccdf7c815fc3f3ebcbed26ab8a977c6`, `ded9db6592d3ffba218ddd1c5c4b8080` twice), all printable ASCII; fingerprint `constraints` `a7f08cda3a69929594e9dad491fac570`; Stage 1 catalog still 16 of 17 with the same check-15 detail. On the clean path the corrective changed nothing.
+- **After M-5:** `functions` `9cf3a14ab12057f876a5a45e2250e592`; Stage 1 catalog 16 of 17 (check 15 `differs: constraints, rls+owners, functions`; check 9 passes); C-14 7 of 7.
+- **After M-6, both paths:** all 12 fingerprint parts identical between the paths and equal to the §20 Stage 2 baseline (`constraints` `a7f08cda3a69929594e9dad491fac570`, `functions` `849220530a3d4b56a35f4e154a6d19e6`, `canonical_data` `dc85e31b82116a9fa79adaac8399aa90`). On each: catalog 17 of 17, C-14 7 of 7, Stage 1 behavior 24 of 24, B-4 29 of 29, concurrency 9 of 9, integrity 6 of 6; afterwards the fingerprint was unchanged and the catalog 17 of 17 again.
+- **C-11 script:** on the replica, every step PASS, ending "8 recorded, 0 pending". On the clean replay, row 5 FAILs with "md5 23dd3270cdca77001fe2f9a86917d518, expected 4b09ad34a82823aacf22d4afa63bad53" and the rest pass: the script describes production, and only the preserved statement is accepted for that version.
+- **Negative tests, on Stage 1 plus the stored M-4:**
+  - A corrective with one wrong post-check md5 raised "I14 constraint text differs from the reviewed M-4 text in 1 constraint(s)", in a transaction and in autocommit; the six constraints were byte-unchanged.
+  - A constraint with drifted text, and a missing constraint, each raised "... is neither the reviewed nor the known transported text in 1 constraint(s)", with nothing changed.
+  - The unmodified corrective applied twice in a row on the replica, and once more on the clean path, without error, ending at the reviewed text.
+  - The C-11 script failed each injected fault with a specific detail: M-4 at another version; M-5 recorded before the corrective ("position 6, expected 7"); the corrective recorded twice; an unexpected name; the corrective stored with one character changed. A Stage 1 history passes with "4 recorded, 4 pending", which is why the runbook fixes the expected counts per step.
+- **Limitations:** the intermediate and final values are from local replays. Production's HEAD fingerprint hasn't been read since M-4; §20's P4 is that comparison. `apply_migration`'s own transport isn't exercised locally.
+- **Reproducibility:** the migrations, suites and verifier are reproducible from repo; the step-by-step harness, the exhaustive I14 query and the fault cases were scratch scripts, recorded only.
+
+### EVAL-090: DR-026 repository validation, and the tool path reproducing the transport mutation
+- **Date:** 19:04 to 19:23.
+- **Commit:** `110789f`.
+- **Target:** local, build and static.
+- **Result:**
+  - **Transport lint:** `node supabase/tests/migration_transport_lint.mjs` PASS for all 8 files; allowlisted exactly: Phase 1 U+2192 x1, Stage 1 backslash x1, M-4 escape text x64 and backslash x64, M-5 U+2192 x1. The corrective and M-6 have no entry.
+  - **Unit tests:** 116 of 116 (80 existing, 36 new: the lint's rules, the policy, and `migration_parity.sql`'s md5s, order and M-4 exception against the files and the artifact). Five mutants of the lint (R2 disabled, R3 and R5 as maxima, R4 disabled, the stale-entry check disabled) each failed at least one test.
+  - **Artifact:** `verify.mjs` PASS on all checks. Its first run failed, on a bug in its own pattern (a single backslash before `u` is an identity escape in JavaScript, so it matched a bare `u`); fixed before the commit.
+  - **Renames:** Git records all three as `R100`; md5s `23dd3270cdca77001fe2f9a86917d518`, `b6c04e38855362dc4d6d4cdd2be16a68`, `283c1e59342ece367e58c693f33c029a`, unchanged.
+  - **Typecheck** exit 0; **build** succeeds; **Markdown** 0 problems, no em dashes; `git diff --check` clean; the project ref appears in no changed file.
+  - **Hygiene: the tool path reproduced the incident.** The first hygiene run flagged four raw characters, U+202A, U+202E, U+2066 and U+2069, on one line of the artifact's `README.md`. That file was written with the session's file-writing tool, and its input had the four escape texts for those code points, each written as a backslash, `u` and four hex digits. On the same line, the escape texts for U+0001 and U+009F stayed as text. That is the same selective decoding as M-4's in EVAL-088, through a tool other than Supabase's, so the decoding happens in the session's tool-input path, before any tool runs. The line was rewritten with the backslash built at run time; hygiene then found 0 flagged characters in 79 files, and nothing with a raw character was committed.
+- **Consequence:** this supports DR-026's design. No remaining migration contains escape text or a backslash, and none of the checks depends on the transport's behavior: C-11 after each call stays the gate.
+- **Limitations:** which escape texts the tool path decodes is observed for six code points, not characterized.
+- **Reproducibility:** the lint, tests, verifier, build and checks are reproducible from repo; the hygiene finding is recorded only.
+
 ## Not run (don't claim these)
 
 This list reflects the state after the deployment-path decision (about 14:25).
@@ -1741,6 +1782,8 @@ This list reflects the state after the deployment-path decision (about 14:25).
 **Update (after EVAL-086):** the Stage 2 UI (A1, A3 to A9) is built and verified locally against disposable databases (EVAL-079 to EVAL-086). Still not run: the Stage 2 UI against live or hosted anywhere, any Stage 2 migration or check on live, and a committed end-to-end suite.
 
 **Update (2026-10-03, EVAL-088):** M-4 alone is applied to live, as `20261003183331`; its stored statement differs from the file in 24 escape substitutions, so C-11 fails for that version. Still not run on live: M-5, M-6, the HEAD catalog and fingerprint, C-14, V1 to V9, and the Stage 2 UI. Nothing is hosted.
+
+**Update (2026-10-03, EVAL-089, EVAL-090):** the DR-026 reconciliation (renames, the stored-statement artifact, the corrective, the transport lint, the C-11 script) is verified locally on both a production replica and a clean replay. Not run: any of it on live. The corrective, M-5 and M-6 aren't applied, and nothing is hosted.
 
 - **Production deployment of Stage 1 (as of 14:25; superseded, see the update above):** the migration was **not** applied to live, so live hasn't been verified after it. The deployment path is designated (DR-024), and the deployment is a separate, authorized run. On live, the catalog test passing 17 of 17, the fingerprint matching EVAL-045, and the 0028/0029 advisor lints clearing are expected but **unverified**.
 - **GitHub integration settings:** not applicable. No GitHub integration has ever been connected (EVAL-060). The earlier entry here assumed one might exist.
