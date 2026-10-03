@@ -412,7 +412,7 @@ alter default privileges for role postgres in schema public revoke all on tables
 | A1 | Low priority; **Stage 2 prerequisite** (DR-025) | Show the error message only for SQLSTATE `P0001`; otherwise show "Could not load data (code XXXXX)". **In the repository** (EVAL-079): `src/lib/errors.ts`, see §19 **Errors** |
 | A2 | Low priority | Route ids match `/^\d{1,15}$/`; anything longer goes to Not found (N5) |
 | A3 | Stage 2 | Sandbox banner, a "Sandbox" badge in the list; the title chip counts canonical launches only. **In the repository** (EVAL-081) |
-| A4 | Stage 2 | Canonical pages show no write controls and link to "Try this in the sandbox" |
+| A4 | Stage 2 | Canonical pages show no write controls and link to "Try this in the sandbox". **In the repository** (EVAL-083) |
 | A5 | Stage 2 | Visitor evidence and decisions show a "Visitor" label beside the type and the decider |
 | A6 | Stage 2 | **Rendering `source`:**<br>• visitor-origin `source` is plain text<br>• seed-origin `source` is a link only if `new URL(source).protocol === 'https:'`, with `rel="noopener noreferrer nofollow"` |
 | A7 | Stage 2 | The header button becomes "Reset sandbox", calls `sandbox_reset` behind a confirmation, and shows the cooldown message |
@@ -885,6 +885,14 @@ Recorded before the UI work starts. They settle what §10, the sections above, S
 - **Refetch (I17).** `AppShell` owns a refresh counter and a function that increments it, passed to routed pages through the router's outlet context. Pages include the counter in their existing fetch effects. A successful evidence add or status change calls it; a reset calls it after success and after the error path above. No state-management or caching library is added.
   - **Update (2026-10-02, after the preflight for A3):** a refresh keeps what's on screen. Initial page loads and route changes may show the existing loading state. A refresh triggered by a sandbox evidence add, a status change or a sandbox reset keeps the currently rendered content while the replacement data is fetched: the refresh counter signals a refetch and never itself clears data already loaded.
   - **Update (2026-10-02, after EVAL-081):** a failed refresh keeps the last successfully loaded content. Failures on an initial load or a route change keep the existing error behavior. How a refresh failure is shown without replacing the content is deferred to A4 and A7, which add the first refresh callers; no new toast or error UI is added before then. As of EVAL-081 the overview still replaces its content with the error panel when a same-launch refetch fails; nothing triggers a refresh yet, so that path can't occur, and A4 or A7 brings the code into line with this rule.
+- **A4 as built (2026-10-02, after EVAL-082; EVAL-083).**
+  - **Route:** `gates/:gateId` is a child route of `launches/:launchId`, so the overview stays mounted behind the sheet; the overview renders it with `useOutlet`, passing the launch, its sandbox launch id and the refresh signal. The sheet is a `role="dialog"` panel: it focuses its heading on open, closes on Escape, Close or Back (opening is a navigation), and the overview behind it is `inert`.
+  - **Writes:** only `sandbox_add_evidence` and `sandbox_set_gate_status`, through `src/lib/gate.ts`, with the blank-argument rule above. Field checks mirror this section's limits; the database stays authoritative, and its errors pass through A1.
+  - **A6:** the sheet's evidence list renders each source through `sourceView`, as a text node or a link with its `rel`.
+  - **Sandbox link:** the overview finds the sandbox copy by `source_launch_id`; canonical overviews and canonical gate sheets link to that launch.
+  - **Refresh failures:** the overview and the sheet keep their last good content and show a red alert above it ("Could not refresh this launch." or "…this gate.", with "Could not load data (code X)"). Nothing new was added for this; it is the existing alert style.
+  - **Copy this section left open:** the 20-decision cap message follows the evidence cap's wording: "This gate has reached its 20 visitor decisions. Reset the sandbox to start again." The evidence form shows "Recorded by: Visitor · Date: today, set by the database", the fixed values this section says are shown, never entered; this is the form, not A5's labels on listed items.
+  - **Not built:** A5's "Visitor" labels on listed evidence and decisions, and A7's reset.
 
 ### Evaluation
 
@@ -912,3 +920,4 @@ Recorded before the UI work starts. They settle what §10, the sections above, S
 - **Update (2026-10-02, after EVAL-081):** A3 and the refresh infrastructure are in the repository, not yet committed (EVAL-081). A4 to A7 aren't built.
 - **Update (2026-10-02, after EVAL-081, commit):** A3 and the refresh infrastructure are committed (`053aaf8`), validated in EVAL-081. A4 to A7 aren't built.
 - **Update (2026-10-02, after EVAL-082):** A6's rendering rule is implemented as `sourceView` in `src/lib/source.ts` and tested (EVAL-082). No page renders `source` yet; the gate sheet will use it. A4, A5 and A7 aren't built.
+- **Update (2026-10-02, after EVAL-083):** A4 is in the repository: the gate sheet, the canonical sandbox link, and the evidence and status forms (EVAL-083; **A4 as built** above). A5 and A7 aren't built.

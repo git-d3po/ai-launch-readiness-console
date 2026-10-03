@@ -67,6 +67,11 @@ export function canonicalLaunches<R extends Pick<LaunchRow, 'sourceLaunchId'>>(r
 /** Formats a Postgres date (YYYY-MM-DD) without shifting it across time zones. */
 export function formatTargetDate(date: string | null): string {
   if (date === null) return 'Target unset';
+  return formatCalendarDate(date);
+}
+
+/** Formats a Postgres date (YYYY-MM-DD), e.g. "Nov 30, 2026", without shifting it across time zones. */
+export function formatCalendarDate(date: string): string {
   return new Date(`${date}T00:00:00Z`).toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',

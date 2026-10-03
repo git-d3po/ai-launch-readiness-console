@@ -7,3 +7,12 @@
 export function showsLoading<K>(shownKey: K | undefined, key: K): boolean {
   return shownKey !== key;
 }
+
+/**
+ * True when a failed fetch should keep the content on screen: a refresh of
+ * content already shown keeps it, and the failure is reported beside it. A
+ * failed initial load or route change shows the error instead.
+ */
+export function keepsContentOnFailure(isRefresh: boolean, hasContent: boolean): boolean {
+  return isRefresh && hasContent;
+}

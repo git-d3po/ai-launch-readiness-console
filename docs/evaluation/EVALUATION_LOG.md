@@ -119,6 +119,7 @@ migrations (`supabase/tests/local_roles.sql` first, for the `anon` and `authenti
 | EVAL-080 | 2026-10-02, after EVAL-079 | A9 types generated locally; A8 provenance fields | local | Types match the local catalog (65 columns, 8 relations, 6 functions); 29/29 tests; A8 end to end on a local PostgREST | Reproducible from repo (generation command, unit tests); end-to-end run recorded only |
 | EVAL-081 | 2026-10-02, after EVAL-080 | A3 and the refresh infrastructure | local, build | 34/34 tests; local browser check: badge, canonical-only chip, banner; no overflow at 390 px | Reproducible from repo (unit tests); browser check recorded only |
 | EVAL-082 | 2026-10-02, after EVAL-081 | A6: source rendering rule | local, build | 6 new tests, 40/40 in total; both security mutants caught | Reproducible from repo |
+| EVAL-083 | 2026-10-02, after EVAL-082 | A4: gate sheet, sandbox link, evidence and status forms | local, build | 60/60 tests; 29/29 local browser checks | Reproducible from repo (unit tests); browser walkthrough recorded only |
 
 ---
 
@@ -1587,6 +1588,22 @@ Starting commit: `da583ab0188b9e6b34de99046909cecdbb8bc03b`, clean. Specificatio
 - **Tests:** `src/lib/source.test.ts`, 6 tests: a seed https link with the exact `rel` and no `target`; a visitor https source as text; seed `http:`, `javascript:`, `data:` and `mailto:` as text; unparseable seed sources as text; an upper-case `HTTPS:` scheme linking, as `new URL` reports `https:`; a null source as `none` for either origin. With the origin check removed, 1 test fails; with `rel` weakened to `noopener`, 2 fail.
 - **Result:** 40 of 40 tests; typecheck exit 0; build succeeds.
 - **Reproducibility:** reproducible from repo.
+
+### EVAL-083: A4, the gate sheet with the sandbox link and the forms
+- **Date:** 2026-10-02, after EVAL-082.
+- **Target:** local (Vitest; a Vite dev server against a local PostgREST on a disposable database built from the migrations, as `anon`) and build. No production call, and no change under `supabase/`.
+- **Change:** `src/lib/gate.ts` (the gate query; `addSandboxEvidence` and `setSandboxGateStatus`, which call only the two sandbox functions and omit a blank source and non-Waived waiver text; field checks; status choices), `src/pages/GateSheet.tsx` (the sheet), the nested route in `src/App.tsx`, the overview's sandbox lookup and link, `SandboxBanner` shared by the overview and the sheet, and `keepsContentOnFailure` for failed refreshes. The test stub now also passes each request's method and JSON body.
+- **Tests:** 60 of 60 (20 new). They cover the gate query (columns, launch scoping, mapping, visitor counts, not found, errors); the two writes as sent over the wire (function name, POST, trimmed fields, the omitted arguments, P0001 shown verbatim, 23514 shown generically); field checks, including code-point lengths; status choices with "Add evidence first"; the overview's sandbox lookup; and the refresh-failure rule.
+- **Browser walkthrough (recorded only), 29 of 29.** On a fresh local database where one canonical seed row was given an https source:
+  - **Canonical pages:** the overview and a canonical gate sheet link to `/launches/2`, and have no form controls.
+  - **Sheet behavior:** opening a gate goes to `/launches/1/gates/14` with its title focused and the overview inert. Escape and Back close it. A deep link opens the sheet over the overview. A gate of another launch shows "This launch has no such gate."
+  - **Sources (A6):** the seed https source is a link with `rel="noopener noreferrer nofollow"` and no `target`; a visitor's https source is plain text.
+  - **Forms:** an empty evidence form shows field errors and sends nothing, and Passed is disabled as "Passed (Add evidence first)". Adding evidence updated the sheet and the overview's count from 0 to 1, and a status change updated both, with the new decision in the latest decisions. A control character in a title showed "Could not save (code 23514)" without the constraint name.
+  - **Refresh failure:** with reads made to fail after a successful write, both views kept their content and showed the refresh alerts with "Could not load data (code XX000)", not the raw message. No loading state replaced content during any refresh.
+  - **Not built:** there is no standalone "Visitor" label (A5), and the header still has the disabled "Reset demo data" placeholder (A7).
+  - **Layout:** at 390 px the sheet is full-screen with no horizontal scroll.
+- **Result:** typecheck exit 0; build succeeds.
+- **Reproducibility:** the unit tests are reproducible from repo; the browser walkthrough is recorded only.
 
 ## Not run (don't claim these)
 

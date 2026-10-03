@@ -19,6 +19,8 @@ export interface OverviewGate {
 export interface LaunchOverview {
   /** sourceLaunchId is the canonical launch a sandbox copies; null for a canonical launch (A8). */
   launch: { id: number; name: string; owner: string; targetDate: string | null; sourceLaunchId: number | null };
+  /** The sandbox copy of this launch, for the "Try this in the sandbox" link (A4); null for a sandbox launch or none. */
+  sandboxLaunchId: number | null;
   currentStage: { stage: Enums['stage_kind']; status: Enums['stage_status'] } | null;
   gates: OverviewGate[];
   readiness: Readiness<OverviewGate>;
@@ -30,7 +32,7 @@ export interface LaunchOverview {
 
 /** Returns null when no launch has this id. */
 export async function fetchLaunchOverview(client: Client, launchId: number): Promise<LaunchOverview | null> {
-  const [launch, gates, risks, stages, currentStage, latestDecisions, gateDecisions] = await Promise.all([
+  const [launch, gates, risks, stages, currentStage, latestDecisions, gateDecisions, sandbox] = await Promise.all([
     client.from('launches').select('id, name, owner, target_date, source_launch_id').eq('id', launchId).maybeSingle(),
     client
       .from('gates')
@@ -60,9 +62,11 @@ export async function fetchLaunchOverview(client: Client, launchId: number): Pro
       .not('gate_id', 'is', null)
       .order('decided_at', { ascending: false })
       .order('id', { ascending: false }),
+    // The sandbox that copies this launch; none for a sandbox launch.
+    client.from('launches').select('id').eq('source_launch_id', launchId).maybeSingle(),
   ]);
 
-  const failed = [launch, gates, risks, stages, currentStage, latestDecisions, gateDecisions].find((r) => r.error);
+  const failed = [launch, gates, risks, stages, currentStage, latestDecisions, gateDecisions, sandbox].find((r) => r.error);
   if (failed?.error) throw toDataError(failed.error);
   if (!launch.data) return null;
 
@@ -90,6 +94,7 @@ export async function fetchLaunchOverview(client: Client, launchId: number): Pro
       targetDate: launch.data.target_date,
       sourceLaunchId: launch.data.source_launch_id,
     },
+    sandboxLaunchId: sandbox.data?.id ?? null,
     currentStage: current?.stage && current.status ? { stage: current.stage, status: current.status } : null,
     gates: overviewGates,
     readiness: computeReadiness(overviewGates),

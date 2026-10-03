@@ -1,20 +1,22 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { Link, useOutlet, useParams } from 'react-router';
 import { focusRing, useRefresh } from '../components/AppShell';
+import { SandboxBanner } from '../components/SandboxBanner';
 import { gateTone, StatusChip } from '../components/StatusChip';
 import { Constants } from '../lib/database.types';
 import { formatTargetDate } from '../lib/launches';
 import { fetchLaunchOverview, type LaunchOverview, missingLine, type OverviewGate } from '../lib/overview';
 import { userMessage } from '../lib/errors';
-import { showsLoading } from '../lib/refresh';
+import { keepsContentOnFailure, showsLoading } from '../lib/refresh';
 import { supabase } from '../lib/supabase';
+import type { GateSheetContext } from './GateSheet';
 import { NotFound } from './NotFound';
 
 type LoadState =
   | { status: 'loading' }
   | { status: 'error'; message: string }
   | { status: 'not-found' }
-  | { status: 'success'; overview: LaunchOverview };
+  | { status: 'success'; overview: LaunchOverview; refreshError: string | null };
 
 const notConfigured =
   'The Supabase client is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY.';
@@ -23,7 +25,7 @@ export function LaunchOverviewPage() {
   const { launchId } = useParams();
   const id = launchId && /^\d+$/.test(launchId) ? Number(launchId) : null;
   const [state, setState] = useState<LoadState>({ status: 'loading' });
-  const { refreshKey } = useRefresh();
+  const { refreshKey, refresh } = useRefresh();
   // The launch the data on screen belongs to; a refresh of it keeps the content.
   const shownId = useRef<number | undefined>(undefined);
 
@@ -37,22 +39,36 @@ export function LaunchOverviewPage() {
       return;
     }
     let cancelled = false;
-    if (showsLoading(shownId.current, id)) setState({ status: 'loading' });
+    const isRefresh = !showsLoading(shownId.current, id);
+    if (!isRefresh) setState({ status: 'loading' });
     fetchLaunchOverview(supabase, id)
       .then((overview) => {
         if (cancelled) return;
         shownId.current = id;
-        setState(overview ? { status: 'success', overview } : { status: 'not-found' });
+        setState(overview ? { status: 'success', overview, refreshError: null } : { status: 'not-found' });
       })
       .catch((error: unknown) => {
         if (cancelled) return;
         shownId.current = id;
-        setState({ status: 'error', message: userMessage(error, 'Could not load data') });
+        const message = userMessage(error, 'Could not load data');
+        // A failed refresh keeps the overview on screen and reports the failure beside it.
+        setState((prev) =>
+          keepsContentOnFailure(isRefresh, prev.status === 'success') && prev.status === 'success'
+            ? { ...prev, refreshError: message }
+            : { status: 'error', message },
+        );
       });
     return () => {
       cancelled = true;
     };
   }, [id, refreshKey]);
+
+  // The nested gate sheet route, given the launch and the refresh signal.
+  const sheetContext: GateSheetContext | null =
+    state.status === 'success'
+      ? { launch: state.overview.launch, sandboxLaunchId: state.overview.sandboxLaunchId, refreshKey, refresh }
+      : null;
+  const sheet = useOutlet(sheetContext);
 
   if (state.status === 'not-found') return <NotFound />;
   if (state.status === 'loading') return <Panel role="status">Loading launch…</Panel>;
@@ -67,7 +83,24 @@ export function LaunchOverviewPage() {
       </div>
     );
   }
-  return <Overview overview={state.overview} />;
+  return (
+    <>
+      {/* While the gate sheet is open, the overview behind it is inert. */}
+      <div inert={sheet !== null}>
+        {state.refreshError && (
+          <div
+            role="alert"
+            className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-100"
+          >
+            <p className="font-medium">Could not refresh this launch.</p>
+            <p className="mt-1 break-words">{state.refreshError}</p>
+          </div>
+        )}
+        <Overview overview={state.overview} />
+      </div>
+      {state.status === 'success' && sheet}
+    </>
+  );
 }
 
 function Overview({ overview }: { overview: LaunchOverview }) {
@@ -77,11 +110,9 @@ function Overview({ overview }: { overview: LaunchOverview }) {
   return (
     <>
       {launch.sourceLaunchId !== null && (
-        // Informational only (A3): no link or action inside.
-        <p className="mb-4 rounded-md border border-line bg-card px-3 py-2">
-          Sandbox: a shared copy of the canonical launch that anyone can change. Changes stay here, and the canonical
-          launch is never changed.
-        </p>
+        <div className="mb-4">
+          <SandboxBanner />
+        </div>
       )}
       <header>
         <div className="flex flex-wrap items-center gap-2">
@@ -102,6 +133,17 @@ function Overview({ overview }: { overview: LaunchOverview }) {
           </Meta>
           <Meta label="Readiness">{readiness.label}</Meta>
         </dl>
+        {launch.sourceLaunchId === null && overview.sandboxLaunchId !== null && (
+          // Canonical pages show no write controls and link to the sandbox launch (A4).
+          <p className="mt-2">
+            <Link
+              to={`/launches/${overview.sandboxLaunchId}`}
+              className={`rounded-sm text-accent underline-offset-2 hover:underline ${focusRing}`}
+            >
+              Try this in the sandbox
+            </Link>
+          </p>
+        )}
       </header>
 
       <Section title="Blocking launch" count={hasGates ? readiness.blocking.length : undefined}>

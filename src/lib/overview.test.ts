@@ -52,7 +52,8 @@ describe('fetchLaunchOverview provenance (A8)', () => {
       const table = path.split('/').pop() ?? '';
       const select = url.searchParams.get('select') ?? '';
       selects[`${table}:${select}`] = select;
-      if (table === 'launches') return { status: 200, body: sandboxLaunch };
+      // The sandbox's own row; no launch copies a sandbox, so the source lookup finds none.
+      if (table === 'launches') return { status: 200, body: url.searchParams.has('source_launch_id') ? null : sandboxLaunch };
       if (table === 'decisions' && select.includes('decided_by')) return { status: 200, body: decisions };
       if (table === 'launch_current_stage') return { status: 200, body: null };
       return { status: 200, body: [] };
@@ -65,6 +66,7 @@ describe('fetchLaunchOverview provenance (A8)', () => {
       targetDate: null,
       sourceLaunchId: 1,
     });
+    expect(overview?.sandboxLaunchId).toBeNull();
     expect(overview?.decisions.map((d) => [d.id, d.decidedBy, d.origin])).toEqual([
       [12, 'Sandbox visitor', 'visitor'],
       [8, 'Evaluation Lead', 'seed'],
@@ -73,6 +75,23 @@ describe('fetchLaunchOverview provenance (A8)', () => {
     const decisionSelect = Object.keys(selects).find((k) => k.startsWith('decisions:') && k.includes('decided_by'));
     expect(launchSelect?.split(':')[1]?.split(',')).toContain('source_launch_id');
     expect(decisionSelect?.split(':')[1]?.split(',')).toContain('origin');
+  });
+
+  it('finds the sandbox copy of a canonical launch for the "Try this in the sandbox" link (A4)', async () => {
+    const canonical = { ...sandboxLaunch, id: 1, name: 'Halcyon Support Copilot', source_launch_id: null };
+    let lookup: string | null = null;
+    const client = clientAnswering((path, url) => {
+      if (!path.endsWith('/launches')) return { status: 200, body: path.endsWith('/launch_current_stage') ? null : [] };
+      if (url.searchParams.has('source_launch_id')) {
+        lookup = url.searchParams.get('source_launch_id');
+        return { status: 200, body: { id: 2 } };
+      }
+      return { status: 200, body: canonical };
+    });
+    const overview = await fetchLaunchOverview(client, 1);
+    expect(lookup).toBe('eq.1');
+    expect(overview?.launch.sourceLaunchId).toBeNull();
+    expect(overview?.sandboxLaunchId).toBe(2);
   });
 
   it('still returns null for a launch that does not exist', async () => {

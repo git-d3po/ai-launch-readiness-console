@@ -8,11 +8,15 @@ export type Reply = { status: number; body: unknown };
 
 export const clientOptions = { auth: { persistSession: false, autoRefreshToken: false } };
 
-/** A typed client whose requests are answered by `route(path, url)`, e.g. path '/rest/v1/launches'. */
-export function clientAnswering(route: (path: string, url: URL) => Reply) {
-  const fetch = async (input: RequestInfo | URL) => {
+/** What a request carried: its method and its JSON body, if any. */
+export type Sent = { method: string; body: unknown };
+
+/** A typed client whose requests are answered by `route(path, url, sent)`, e.g. path '/rest/v1/launches'. */
+export function clientAnswering(route: (path: string, url: URL, sent: Sent) => Reply) {
+  const fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(input instanceof Request ? input.url : String(input));
-    const reply = route(url.pathname, url);
+    const body = typeof init?.body === 'string' ? (JSON.parse(init.body) as unknown) : undefined;
+    const reply = route(url.pathname, url, { method: init?.method ?? 'GET', body });
     return new Response(JSON.stringify(reply.body), {
       status: reply.status,
       headers: { 'Content-Type': 'application/json' },
