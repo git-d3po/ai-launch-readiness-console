@@ -2,7 +2,7 @@
 
 A launch-readiness operations product for AI systems: it records whether an AI feature is ready to move to its next rollout stage, and why. Gates, evidence, risks, rollout stages and decisions sit in one view, and readiness is computed from them instead of being typed in. Built to demonstrate AI product operations and launch governance: evidence-based readiness, staged rollout, security by design in the database, and a release process where every claim is tied to recorded evidence.
 
-**Live demo:** [AI Launch Readiness Console on Railway](https://web-production-7381e.up.railway.app)
+**Live demo:** [AI Launch Readiness Console on Railway](https://ai-launch-readiness-console-production.up.railway.app)
 
 All data is synthetic: no real customers, systems or launches. The canonical launch is read-only for everyone. Visitors try the workflow in **one shared sandbox**, so changes made there are visible to other visitors until someone resets it. No visitor can change the canonical launch.
 
