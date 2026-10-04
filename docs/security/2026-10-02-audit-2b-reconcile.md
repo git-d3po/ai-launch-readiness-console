@@ -524,8 +524,8 @@ inside a rolled-back transaction.
 | Gate | Condition | Status |
 |---|---|---|
 | R-11 | A3 to A7 shipped | Built in the repository and verified locally (EVAL-081 to EVAL-086); **not shipped**: nothing is hosted. The database part is applied to live and verified (EVAL-091). Closes only after §20 stages 3 to 5: database deployed and verified, frontend hosted, smoke test passed<br>**Met** (2026-10-04): shipped and hosted (EVAL-092, EVAL-093), and the smoke test passed (EVAL-094) |
-| R-12 | **Production headers set:**<br>• CSP `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src https://<project>.supabase.co; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'`<br>• `X-Content-Type-Options: nosniff`<br>• `Referrer-Policy: strict-origin-when-cross-origin`<br>• `Permissions-Policy: camera=(), microphone=(), geolocation=()`<br>• HTTPS with HSTS | Implemented in the server (DR-027), deployed (EVAL-092), and present on the live responses, owner-observed (EVAL-093); the CSP is still report-only, so R-12 closes when R-13's pass lets it be enforced |
-| R-13 | One clean Report-Only CSP pass before the header is enforced | **Met** (2026-10-04, EVAL-094): no Report-Only violation through hosted reads, both sandbox writes, the reset and the rejected reset, owner-observed. Next: switch the header to the enforced `Content-Security-Policy` (DR-027), which closes R-12 |
+| R-12 | **Production headers set:**<br>• CSP `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src https://<project>.supabase.co; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'`<br>• `X-Content-Type-Options: nosniff`<br>• `Referrer-Policy: strict-origin-when-cross-origin`<br>• `Permissions-Policy: camera=(), microphone=(), geolocation=()`<br>• HTTPS with HSTS | Implemented in the server (DR-027), deployed (EVAL-092), and present on the live responses, owner-observed (EVAL-093); the CSP is still report-only, so R-12 closes when R-13's pass lets it be enforced<br>**Met** (2026-10-04, EVAL-095): the CSP is enforced, `Content-Security-Policy` with the directives above and no Report-Only header, from commit `f044d9e` (Railway deployment `20fc28d4`); the other headers intact and no CSP violation on production, owner-observed |
+| R-13 | One clean Report-Only CSP pass before the header is enforced | **Met** (2026-10-04, EVAL-094): no Report-Only violation through hosted reads, both sandbox writes, the reset and the rejected reset, owner-observed. Next: switch the header to the enforced `Content-Security-Policy` (DR-027), which closes R-12. Done (EVAL-095) |
 
 ## 12. Unresolved verification items
 
@@ -990,7 +990,7 @@ Each stage needs the previous one complete. **No stage authorizes the next:** st
 | 3 | **Database deployed and verified.** Post-deployment checks passed; files renamed and parity proven; evidence committed. **Complete** (EVAL-091). | The owner, by authorizing stage 4 | Every post-deployment check passes |
 | 4 | **Frontend deployed, not released.** Built with the live values, hosted with the SPA fallback, HTTPS and headers, CSP in Report-Only. The URL isn't shared. **Complete: frontend hosted and hosted verification complete; not yet publicly released or shared** (2026-10-03, EVAL-092, EVAL-093; the hosted checks are owner-observed). Next: stage 5, which needs its own authorization. | The owner, by authorizing stage 5 | Hosted build loads; headers present |
 | 5 | **Production smoke test complete.** The first exercise of the public API path; mutates sandbox data only. **Complete** (2026-10-04, EVAL-094; owner-driven, database-verified). Next: stage 6, which needs its own authorization. | The owner, by authorizing stage 6 | Every smoke step passes; sandbox reset at the end; canonical data unchanged |
-| 6 | **Public release.** CSP enforced after a clean Report-Only pass; R-11 to R-13 closed; URL shared. | Not applicable | Gates closed and recorded |
+| 6 | **Public release.** CSP enforced after a clean Report-Only pass; R-11 to R-13 closed; URL shared. **CSP enforced and R-11 to R-13 closed** (2026-10-04, EVAL-095). Not yet released: the URL isn't shared and the repository is private, pending the owner's decision. | Not applicable | Gates closed and recorded |
 
 ### Do not do (before the stage that authorizes it)
 
@@ -1181,6 +1181,7 @@ The seven security parts equal catalog check 15's embedded values. **Superseded:
 - The URL stays unshared until stage 6.
 - **Implementation (DR-027):** `npm start` runs `server/static-server.mjs`, a dependency-free Node server for `dist/` with the SPA fallback, real 404s for missing assets, the R-12 headers with the CSP report-only, and `connect-src` taken from `VITE_SUPABASE_URL` at start-up. `railway.json` sets the build, start command and a healthcheck on `/`.
 - **Deployed (2026-10-03, EVAL-092):** Railway project `ai-launch-readiness-console`, service `web`, environment `production`, from `main` at `4a3b869`; Node 22.23.2; healthcheck on `/` passed; Railway-generated domain (recorded in EVAL-092, not shared). Pending: the hosted checks of the routes, the production data read, the console and the R-12 headers, from a browser that can reach the domain.
+- **CSP enforced (2026-10-04, EVAL-095):** the header is `Content-Security-Policy` since commit `f044d9e`, deployed as Railway deployment `20fc28d4`; verified locally and on production (owner-observed). Since that deployment, `main` is the service's deploy branch, so pushes to `main` deploy.
 - **Hosted verification (2026-10-03, EVAL-093, owner-observed):** the routes including the deep link and a missing-asset 404, the production data read, a clean console, the R-12 headers with the report-only CSP (`connect-src` the production Supabase origin, no development origin), and 390 px all pass. Stage 4 is complete; stage 5 is pending.
 
 ### Production smoke test (stage 5)
@@ -1201,6 +1202,8 @@ The hosted app is the first exercise of the public API path (DR-025 item 5). It 
 
 After a clean Report-Only pass, enforce the CSP (R-13, then R-12); close R-11; record the evaluations and update the status records; then share the URL.
 
+**Done (2026-10-04, EVAL-095):** the CSP is enforced, R-11 to R-13 are met, and the records are updated. Remaining: the owner's public-release decision (sharing the URL, repository visibility).
+
 ### Release gates at this stage
 
 R-1, R-2 (Stage 1), R-4, R-5, R-7, R-9 and R-10 are met; R-8 is retired. Still open: **R-3** and **R-6** for Stage 2 (after V4 to V7), **R-11** (stages 3 to 5), **R-12** and **R-13** (stages 4 and 6). Repository readiness (stage 1) closes none of them.
@@ -1210,3 +1213,5 @@ R-1, R-2 (Stage 1), R-4, R-5, R-7, R-9 and R-10 are met; R-8 is retired. Still o
 **Update (2026-10-03, EVAL-093):** stage 4 is complete. R-12's headers are live, with the CSP report-only. Still open: **R-11** (stage 5), **R-13** and the CSP enforcement that closes **R-12** (stages 5 and 6).
 
 **Update (2026-10-04, EVAL-094):** stage 5 is complete; R-11 and R-13 are met. Still open: **R-12**, closed by enforcing the CSP, a bounded code change (the header name in `server/static-server.mjs` and its test) and a redeploy. Then stage 6: the owner's public-release decision.
+
+**Update (2026-10-04, EVAL-095):** the CSP is enforced on production; **R-12 is met**. It was the last open gate: none of R-1 to R-13 remains open (R-8 is retired, and R-4 and R-7 stand as qualified in their rows). The public release (stage 6) is the owner's decision.
