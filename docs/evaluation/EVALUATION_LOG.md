@@ -130,6 +130,7 @@ migrations (`supabase/tests/local_roles.sql` first, for the `anon` and `authenti
 | EVAL-091 | 2026-10-03, 19:32 to 19:56 | Stage 2 production window resumed: Stage 1 + M-4 preflight, corrective, M-5, M-6, V1 to V9 | live read-only, live write | P1 to P8 pass; three applies, each verified at once by C-11; 8 versions, C-11 PASS with the one M-4 exception; catalog 17/17; C-14 7/7; fingerprint = Stage 2 baseline; canonical data unchanged | Catalog, fingerprint, C-14 and C-11 reproducible from repo, read-only; the window recorded only |
 | EVAL-092 | 2026-10-03, 20:13 to 20:27 | Stage 4: Railway project and service, first deployment of `main` | hosting, static | Built and deployed `4a3b869`; server started on Railway's port; healthcheck passed (SUCCESS); domain generated. Hosted HTTP, data-read and header checks not executable here (egress policy) | Recorded only |
 | EVAL-093 | 2026-10-03, after EVAL-092 | Stage 4 hosted verification: routes, data read, console, headers, 390 px (owner-observed) | hosting (owner's browser) | All pass as observed by the owner; Stage 4 complete | Recorded only (owner-observed) |
+| EVAL-094 | 2026-10-03 23:24 to 2026-10-04 00:15 | Stage 5 hosted smoke test: canonical read-only, sandbox evidence and status, refresh, reset, cooldown (owner-driven, DB-verified) | live write (sandbox), live read-only, owner's browser | All steps pass; canonical unchanged; sandbox back to seed; no CSP report | Recorded only |
 
 ---
 
@@ -1867,6 +1868,34 @@ All times UTC on **2026-10-03**. Authorized by the owner: a new Railway project 
 - **Limitations:** owner-observed; no screenshot, HAR or header capture is preserved in the repository. The R-12 headers are also covered by the server's committed tests (DR-027).
 - **Reproducibility:** recorded only.
 
+## Stage 5 hosted smoke test (2026-10-03 23:24 to 2026-10-04 00:15 UTC)
+
+Owner-authorized. The owner drove the live site in their own browser, step by step; Claude chose the steps and the values, and verified each write read-only through the normal Supabase connector. This session still couldn't reach the hosts itself (egress policy, EVAL-093). The Supabase Deployment connector stayed disconnected; no migration, schema, Railway or repository-visibility change.
+
+### EVAL-094: Stage 5 hosted smoke test
+- **Date:** 2026-10-03 23:24 UTC to 2026-10-04 about 00:15 UTC.
+- **Target:** live write (sandbox rows only, through the three public functions from the hosted app), live read-only (Supabase connector), and the owner's browser. Runtime: Railway deployment `04479681…`, commit `4a3b869` (EVAL-092).
+- **Evidence sources:** **[owner]** observed in the live browser, some with screenshots shared in the session (not stored in the repository); **[db]** verified read-only by Claude through the Supabase connector; **[local]** covered by deterministic tests rather than re-induced on production.
+- **Baseline (23:24, [db]):** 8 migrations as in EVAL-091; `canonical_data` `dc85e31b82116a9fa79adaac8399aa90`; launches 1 (canonical) and 2 (its sandbox); 0 visitor evidence, 0 visitor decisions; all 16 sandbox gates equal their sources; `sandbox_state.last_reset_at` `-infinity` (never reset); API roles: no table write privilege, EXECUTE on exactly `sandbox_add_evidence`, `sandbox_reset`, `sandbox_set_gate_status`.
+- **Plan:** the fewest writes: one evidence item and one status change on sandbox gate 30 ("Rollback procedure documented and rehearsed", required, Not started, no evidence; source gate 14), then one reset and one immediate second reset.
+
+| Step | Result |
+|---|---|
+| 1. Canonical, read-only | [owner] `/launches/1`: 10 blocking gates; "Try this in the sandbox" present; a canonical gate sheet has no Add evidence or Change status controls; its seed evidence has no Visitor label; console clean |
+| 2. Into the sandbox | [owner] the link lands on `/launches/2` with the informational banner; 10 blocking gates; Reset sandbox stays in the header over an open sheet; gate 30's sheet shows both forms; copied seed evidence has no Visitor label; console clean |
+| 3. Visitor evidence | [owner] saved once on gate 30, shown with "Visitor" and the server's date (Oct 3, 2026); the source `https://example.com/stage-5-smoke` rendered as plain text, not a link; the call returned 200. Type entered was **Observation**, not the planned Document; accepted as equivalent, since the type is a pass-through enum value that no rule depends on, and a re-run would have spent the cooldown-free reset. [db] exactly one visitor evidence row: id 21, gate 30 (launch 2), `origin` `visitor`, `recorded_on` `2026-10-03` (the server date), title, summary and source as entered; 0 visitor decisions; canonical evidence still 10 rows; `canonical_data` unchanged |
+| 4. Status change | [owner] Not started → Passed with rationale "Stage 5 hosted smoke status change"; `sandbox_set_gate_status` 200 and every refetch 200; the sheet shows Passed; blocking count 10 → 9. [db] exactly one visitor decision: id 9, launch 2, gate 30, `status_change`, "Rollback procedure documented and rehearsed: Not started → Passed", `decided_by` `Sandbox visitor`, `origin` `visitor`, no waiver; only gate 30 differs from its source; canonical gate 14 still Not started; `canonical_data` unchanged. Passing needed the visitor evidence, so the Passed-requires-evidence rule held with visitor evidence |
+| 5. Refresh and deep link | [owner] a reload of `/launches/2` kept 9 blockers and the latest decision shown as "Sandbox visitor" with "Visitor"; a direct load of `/launches/2/gates/30` reopened the sheet on Passed with the Visitor evidence; `/launches/1` still 10 blockers, its Rollback gate Not started with no evidence |
+| 6a. Reset | [owner] from the header with gate 30's sheet open, confirmed in the dialog: "Sandbox reset"; gate 30 back to Not started with Evidence (0); 10 blockers. [db] `last_reset_at` 2026-10-04 00:05:05 UTC; 0 visitor evidence, 0 visitor decisions; all 16 sandbox gates equal their sources; totals back to 20 evidence and 8 decisions; `canonical_data` unchanged |
+| 6b. Cooldown | [owner] an immediate second reset, confirmed about 2 minutes 40 seconds later: rejected, the dialog showing "The sandbox was not reset." and the database's message verbatim, "The sandbox was reset recently. Try again in 2 minutes 17 seconds."; `POST /rest/v1/rpc/sandbox_reset` 400 (P0001); page stayed at 10 blockers. [db] `last_reset_at` unchanged, so the rejected call changed nothing |
+| 7. Visual | [owner] desktop: launch list, canonical and sandbox overviews, a gate sheet, About; 390 px: launch list, a gate sheet, About. No regression from Stage 4 |
+
+- **Console and CSP (R-13), [owner]:** through the reads, both writes, the reset and the rejected reset: no red JavaScript errors and no `[Report Only]` CSP messages. Network: the data and function calls went to the production Supabase origin and returned 200, except the expected 400 of the rejected reset. The only other Console line was the browser's automatic `GET /favicon.ico` 404: the app has no favicon and the server correctly 404s a missing file. Cosmetic finding, not blocking.
+- **Final integrity ([db], about 00:08):** 8 migrations, unchanged; `constraints` `a7f08cda3a69929594e9dad491fac570` and `functions` `849220530a3d4b56a35f4e154a6d19e6` (no schema change); `canonical_data` `dc85e31b82116a9fa79adaac8399aa90`; 0 visitor rows and 0 rows with the smoke-test text; 2 launches; no table write privilege; exactly the three sandbox functions executable. The sandbox was left at its seed state; the cooldown expired at 00:10:05 UTC.
+- **Not re-induced on production ([local]):** a failed refresh keeping the last good content (EVAL-085, EVAL-086), the evidence and decision caps and races (EVAL-078, EVAL-089), invalid text and non-https sources (B-4), and higher isolation levels. A visitor source is never a link: observed on live in step 3, and covered by EVAL-082.
+- **Result:** every Stage 5 step passed. **Stage 5 is complete.** R-11 is met. R-13's Report-Only pass is clean on production.
+- **Reproducibility:** recorded only.
+
 ## Not run (don't claim these)
 
 This list reflects the state after the deployment-path decision (about 14:25).
@@ -1887,6 +1916,8 @@ This list reflects the state after the deployment-path decision (about 14:25).
 **Update (2026-10-03, EVAL-092):** the frontend is deployed on Railway from `main` (`4a3b869`) and passes Railway's healthcheck. Not yet observed: the hosted routes, data read, console and response headers (this session's network policy blocks the domain), and anything in Stage 5. The URL isn't shared.
 
 **Update (2026-10-03, EVAL-093):** the hosted checks passed, as observed by the owner in their own browser: routes, the production data read, the console, the R-12 headers with the report-only CSP, and 390 px. Stage 4 is complete. Still not run on live: any sandbox write or reset, and the Stage 5 walkthrough. The URL isn't shared.
+
+**Update (2026-10-04, EVAL-094):** the hosted smoke test passed: sandbox evidence and status change through the live app, reset, and the cooldown rejection, with canonical data unchanged and no CSP report. Still not done: enforcing the CSP, and the public release (stage 6).
 
 - **Production deployment of Stage 1 (as of 14:25; superseded, see the update above):** the migration was **not** applied to live, so live hasn't been verified after it. The deployment path is designated (DR-024), and the deployment is a separate, authorized run. On live, the catalog test passing 17 of 17, the fingerprint matching EVAL-045, and the 0028/0029 advisor lints clearing are expected but **unverified**.
 - **GitHub integration settings:** not applicable. No GitHub integration has ever been connected (EVAL-060). The earlier entry here assumed one might exist.
