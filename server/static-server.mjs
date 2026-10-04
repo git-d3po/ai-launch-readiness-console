@@ -11,8 +11,8 @@
 //   broken asset never comes back as HTML.
 // - Never serves anything outside dist/: dot segments, encoded or not, and
 //   NUL bytes are refused.
-// - Every response carries the R-12 headers. The CSP is sent as
-//   Content-Security-Policy-Report-Only until R-13's clean pass. Its
+// - Every response carries the R-12 headers. The CSP is enforced, sent as
+//   Content-Security-Policy since R-13's clean Report-Only pass. Its
 //   connect-src is the origin of VITE_SUPABASE_URL, read at start-up, so the
 //   project's URL lives in the host's configuration, not in this repository.
 //   The server refuses to start without an https URL there.
@@ -52,8 +52,8 @@ export function supabaseOrigin(url) {
   return parsed.origin;
 }
 
-// R-12, with the CSP report-only (R-13). X-Frame-Options enforces the framing
-// rule now, while the CSP's frame-ancestors only reports.
+// R-12, with the CSP enforced after R-13's clean Report-Only pass.
+// X-Frame-Options backs up frame-ancestors for browsers without CSP framing.
 export function securityHeaders(origin) {
   const csp = [
     "default-src 'none'",
@@ -68,7 +68,7 @@ export function securityHeaders(origin) {
     "object-src 'none'",
   ].join('; ');
   return {
-    'Content-Security-Policy-Report-Only': csp,
+    'Content-Security-Policy': csp,
     'X-Content-Type-Options': 'nosniff',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
     'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
@@ -150,6 +150,6 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const root = fileURLToPath(new URL('../dist', import.meta.url));
   const port = Number(process.env.PORT ?? 3000);
   createServer(createHandler({ root, origin })).listen(port, '0.0.0.0', () => {
-    console.log(`Serving dist/ on 0.0.0.0:${port}; CSP report-only, connect-src ${origin}`);
+    console.log(`Serving dist/ on 0.0.0.0:${port}; CSP enforced, connect-src ${origin}`);
   });
 }

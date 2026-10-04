@@ -92,11 +92,11 @@ describe('path safety', () => {
 });
 
 describe('security headers', () => {
-  it('sends the R-12 set on every response, the CSP report-only', async () => {
+  it('sends the R-12 set on every response, the CSP enforced', async () => {
     for (const path of ['/', '/assets/index-abc.js', '/assets/missing.js', '/../x']) {
       const { headers } = await get(path);
-      expect(headers['content-security-policy']).toBeUndefined();
-      expect(headers['content-security-policy-report-only']).toBe(
+      expect(headers['content-security-policy-report-only']).toBeUndefined();
+      expect(headers['content-security-policy']).toBe(
         "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; "
           + `connect-src ${ORIGIN}; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'`,
       );
@@ -111,9 +111,10 @@ describe('security headers', () => {
   it('takes connect-src from the configured URL, as an origin only', () => {
     expect(supabaseOrigin('https://abc.supabase.co/')).toBe('https://abc.supabase.co');
     expect(supabaseOrigin('https://abc.supabase.co/rest/v1')).toBe('https://abc.supabase.co');
-    expect(securityHeaders('https://abc.supabase.co')['Content-Security-Policy-Report-Only']).toContain(
+    expect(securityHeaders('https://abc.supabase.co')['Content-Security-Policy']).toContain(
       'connect-src https://abc.supabase.co;',
     );
+    expect(securityHeaders('https://abc.supabase.co')).not.toHaveProperty('Content-Security-Policy-Report-Only');
   });
 
   it('refuses to start without an https Supabase URL', () => {
